@@ -252,7 +252,12 @@ New Message from Candidate: "${message}"
 Your task is to:
 1. Respond to the candidate's query or feedback as a professional, encouraging coach.
 2. If the candidate explicitly requests changes to their preparation plan, technical questions, behavioral questions, match score, or skill gaps (e.g. "Add more JS questions", "Change Day 3 focus to System Design", "Include Kubernetes in skill gaps"), you MUST make those changes and provide the updated plan fields under "updatedPlan" in your JSON response.
-3. If the candidate does NOT request any plan modifications, "updatedPlan" MUST be null. Only populate fields in "updatedPlan" that are being modified or added. Keep unmodified fields out of "updatedPlan" or return them updated.
+3. If the candidate does NOT request any plan modifications, set "updatedPlan" to null.
+
+CRITICAL RULES FOR "updatedPlan":
+- Whenever you modify an array field in "updatedPlan" (such as preparationPlan, technicalQuestions, behavioralQuestions, or skillGaps), you MUST return the COMPLETE list including ALL unchanged items along with the updated/added items.
+- NEVER return a partial array containing only the updated item. (For instance, if updating Day 3 of preparationPlan, return ALL days with Day 3 updated, NOT just Day 3).
+- Only include top-level keys in "updatedPlan" that are being changed or modified. Leave unmodified sections out of "updatedPlan" (or set them to undefined/omit them).
 
 Return a JSON object with EXACTLY this structure (do not include any markdown formatting, just the raw JSON object):
 {
@@ -304,4 +309,70 @@ Return a JSON object with EXACTLY this structure (do not include any markdown fo
     }
 }
 
-module.exports = { generateInterviewReport, generateResumePdf, handlePlanChat }
+// ─── Mock Interview Answer Evaluator ─────────────────────────────────────────
+
+const MockEvaluationSchema = z.object({
+    score:        z.number().int().min(1).max(10),
+    feedback:     z.string().min(1),
+    improvements: z.array(z.string()).min(1).max(5),
+    followUp:     z.string(),
+    verdict:      z.enum(["excellent", "good", "average", "needs_work"]),
+})
+
+/**
+ * @description Evaluate a candidate's mock interview answer using AI.
+ * @param {string} question - The interview question asked
+ * @param {string} userAnswer - The candidate's answer
+ * @param {string} jobDescription - Context about the job role
+ * @param {string} questionType - 'technical' or 'behavioral'
+ */
+async function evaluateMockAnswer({ question, userAnswer, jobDescription, questionType }) {
+    try {
+        const prompt = `You are a senior interviewer at a top tech company evaluating a candidate's mock interview answer.
+
+QUESTION TYPE: ${questionType || "technical"}
+QUESTION: ${question}
+CANDIDATE'S ANSWER: ${userAnswer || "(no answer provided)"}
+JOB CONTEXT: ${jobDescription || "Software engineering role"}
+
+Evaluate the answer rigorously and return a JSON object with exactly these fields:
+- "score": integer from 1 to 10 (10 = perfect, 7-8 = good, 5-6 = average, 1-4 = poor)
+- "feedback": 2-3 sentences of specific, direct feedback on what was good and what was lacking
+- "improvements": array of 2-3 concise, actionable improvement suggestions (short bullet-style strings)
+- "followUp": a natural follow-up question the interviewer would ask based on the answer
+- "verdict": one of "excellent" (9-10), "good" (7-8), "average" (5-6), "needs_work" (1-4)
+
+Be direct and honest. If the answer is too short or vague, reflect that in the score.
+Return ONLY valid JSON. No extra text.
+
+Example format:
+{
+  "score": 7,
+  "feedback": "Your answer demonstrated solid understanding of the core concept. However, you missed mentioning trade-offs.",
+  "improvements": ["Mention time complexity", "Include a real-world example", "Discuss scalability trade-offs"],
+  "followUp": "How would you optimize this approach for high-traffic scenarios?",
+  "verdict": "good"
+}`
+
+        const completion = await groq.chat.completions.create({
+            model: MODEL,
+            messages: [{ role: "user", content: prompt }],
+            response_format: { type: "json_object" },
+            temperature: 0.4,
+        })
+
+        const raw = JSON.parse(completion.choices[0].message.content)
+        const validated = MockEvaluationSchema.parse(raw)
+        return validated
+
+    } catch (err) {
+        if (err instanceof z.ZodError) {
+            console.error("Mock eval validation failed:", err.errors)
+            throw new Error("AI returned an invalid evaluation structure.")
+        }
+        console.error("evaluateMockAnswer error:", err.message)
+        throw new Error("Failed to evaluate mock answer.")
+    }
+}
+
+module.exports = { generateInterviewReport, generateResumePdf, handlePlanChat, evaluateMockAnswer }

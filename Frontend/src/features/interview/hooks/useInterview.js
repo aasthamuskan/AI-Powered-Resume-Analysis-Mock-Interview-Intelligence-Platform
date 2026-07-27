@@ -1,4 +1,4 @@
-import { getAllInterviewReports, generateInterviewReport, getInterviewReportById, generateResumePdf, chatWithCoach } from "../services/interview.api"
+import { getAllInterviewReports, generateInterviewReport, getInterviewReportById, generateResumePdf, chatWithCoach, evaluateMockAnswerApi } from "../services/interview.api"
 import { useContext } from "react"
 import { InterviewContext } from "../interview.context"
 
@@ -109,6 +109,19 @@ export const useInterview = () => {
         }
     }
 
-    return { loading, error, report, reports, generateReport, getReportById, getReports, getResumePdf, chatWithAI }
+    const evaluateMockAnswer = async ({ question, userAnswer, interviewId, questionType }) => {
+        try {
+            setError(null)
+            const result = await evaluateMockAnswerApi({ question, userAnswer, interviewId, questionType })
+            return result
+        } catch (err) {
+            const msg = err?.response?.data?.message || err.message || "Failed to evaluate answer."
+            console.error("evaluateMockAnswer error:", err)
+            setError(msg)
+            throw err
+        }
+    }
+
+    return { loading, error, report, reports, generateReport, getReportById, getReports, getResumePdf, chatWithAI, evaluateMockAnswer }
 
 }

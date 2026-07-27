@@ -1,5 +1,5 @@
 const pdfParse = require("pdf-parse/lib/pdf-parse.js")
-const { generateInterviewReport, generateResumePdf, handlePlanChat } = require("../services/ai.service")
+const { generateInterviewReport, generateResumePdf, handlePlanChat, evaluateMockAnswer } = require("../services/ai.service")
 const interviewReportModel = require("../models/interviewReport.model")
 
 
@@ -167,11 +167,31 @@ async function chatInterviewController(req, res) {
         // If there is an updated plan, apply updates to MongoDB and save
         if (result.updatedPlan) {
             const up = result.updatedPlan
-            if (up.matchScore !== undefined) interviewReport.matchScore = up.matchScore
-            if (up.technicalQuestions !== undefined) interviewReport.technicalQuestions = up.technicalQuestions
-            if (up.behavioralQuestions !== undefined) interviewReport.behavioralQuestions = up.behavioralQuestions
-            if (up.skillGaps !== undefined) interviewReport.skillGaps = up.skillGaps
-            if (up.preparationPlan !== undefined) interviewReport.preparationPlan = up.preparationPlan
+            if (up.matchScore !== undefined && typeof up.matchScore === 'number') {
+                interviewReport.matchScore = up.matchScore
+            }
+            if (up.technicalQuestions !== undefined && Array.isArray(up.technicalQuestions)) {
+                interviewReport.technicalQuestions = up.technicalQuestions
+            }
+            if (up.behavioralQuestions !== undefined && Array.isArray(up.behavioralQuestions)) {
+                interviewReport.behavioralQuestions = up.behavioralQuestions
+            }
+            if (up.skillGaps !== undefined && Array.isArray(up.skillGaps)) {
+                interviewReport.skillGaps = up.skillGaps
+            }
+            if (up.preparationPlan !== undefined && Array.isArray(up.preparationPlan)) {
+                const existingPlan = interviewReport.preparationPlan ? interviewReport.preparationPlan.map(item => item.toObject ? item.toObject() : item) : []
+                if (existingPlan.length > 0 && up.preparationPlan.length < existingPlan.length) {
+                    // Smart merge by day to prevent partial updates from deleting other days
+                    const dayMap = new Map(existingPlan.map(item => [item.day, item]))
+                    up.preparationPlan.forEach(newItem => {
+                        dayMap.set(newItem.day, newItem)
+                    })
+                    interviewReport.preparationPlan = Array.from(dayMap.values()).sort((a, b) => a.day - b.day)
+                } else {
+                    interviewReport.preparationPlan = up.preparationPlan
+                }
+            }
 
             await interviewReport.save()
         }
@@ -188,10 +208,48 @@ async function chatInterviewController(req, res) {
     }
 }
 
+/**
+ * @description Evaluate a single mock interview answer and return AI feedback.
+ */
+async function evaluateMockAnswerController(req, res) {
+    try {
+        const { question, userAnswer, interviewId, questionType } = req.body
+
+        if (!question || typeof question !== "string" || question.trim() === "") {
+            return res.status(400).json({ message: "question is required." })
+        }
+        if (!userAnswer || typeof userAnswer !== "string" || userAnswer.trim() === "") {
+            return res.status(400).json({ message: "userAnswer is required." })
+        }
+
+        // Fetch job description for context
+        let jobDescription = ""
+        if (interviewId) {
+            const report = await interviewReportModel.findById(interviewId).select("jobDescription").lean()
+            if (report?.jobDescription) jobDescription = report.jobDescription
+        }
+
+        const evaluation = await evaluateMockAnswer({
+            question: question.trim(),
+            userAnswer: userAnswer.trim(),
+            jobDescription,
+            questionType: questionType || "technical",
+        })
+
+        return res.status(200).json(evaluation)
+
+    } catch (err) {
+        console.error("evaluateMockAnswerController error:", err)
+        return res.status(500).json({ message: err.message || "Failed to evaluate answer." })
+    }
+}
+
+
 module.exports = { 
     generateInterViewReportController, 
     getInterviewReportByIdController, 
     getAllInterviewReportsController, 
     generateResumePdfController,
-    chatInterviewController
+    chatInterviewController,
+    evaluateMockAnswerController
 }

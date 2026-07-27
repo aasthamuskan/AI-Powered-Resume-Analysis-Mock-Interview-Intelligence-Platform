@@ -1,20 +1,85 @@
-.button{
-
+.button {
     border: none;
     outline: none;
-    padding-inline: 1.5rem;
-    padding-block: 0.75rem;
-    border-radius: 1rem;
+    padding: 0.7rem 1.5rem;
+    border-radius: 999px;
     cursor: pointer;
+    font-family: 'Inter', system-ui, sans-serif;
+    font-weight: 600;
+    font-size: 0.875rem;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    white-space: nowrap;
 
-    transition: all 0.3s ease-in-out;
-
-    &.primary-button{
-        background-color: #e1034d;
+    &.primary-button {
+        background: linear-gradient(135deg, #00D4FF 0%, #6366F1 100%);
         color: white;
+        box-shadow: 0 0 24px rgba(0, 212, 255, 0.28);
+
+        &:hover {
+            box-shadow: 0 0 36px rgba(0, 212, 255, 0.45);
+            transform: translateY(-1px);
+        }
+
+        &:active { transform: scale(0.97); }
     }
 
-    &:active{
-        transform: scale(0.9);
+    &.ghost-button {
+        background: transparent;
+        color: rgba(248, 250, 252, 0.8);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+
+        &:hover {
+            background: rgba(255, 255, 255, 0.06);
+            border-color: rgba(0, 212, 255, 0.4);
+            color: #F8FAFC;
+        }
+    }
+
+    &.danger-button {
+        background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
+        color: white;
+        box-shadow: 0 0 20px rgba(239, 68, 68, 0.25);
+        border-radius: 14px;
+        padding: 0.6rem 1.25rem;
+
+        &:hover {
+            box-shadow: 0 0 32px rgba(239, 68, 68, 0.4);
+        }
+    }
+
+    &.cyan-outline-button {
+        background: transparent;
+        color: #00D4FF;
+        border: 1px solid rgba(0, 212, 255, 0.35);
+
+        &:hover {
+            background: rgba(0, 212, 255, 0.08);
+            border-color: #00D4FF;
+            box-shadow: 0 0 16px rgba(0, 212, 255, 0.2);
+        }
+    }
+
+    &.emerald-button {
+        background: rgba(16, 185, 129, 0.12);
+        color: #10B981;
+        border: 1px solid rgba(16, 185, 129, 0.25);
+        border-radius: 8px;
+        padding: 0.45rem 0.9rem;
+        font-size: 0.8rem;
+
+        &:hover {
+            background: rgba(16, 185, 129, 0.2);
+        }
+    }
+
+    &:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+        transform: none !important;
+        box-shadow: none !important;
     }
 }

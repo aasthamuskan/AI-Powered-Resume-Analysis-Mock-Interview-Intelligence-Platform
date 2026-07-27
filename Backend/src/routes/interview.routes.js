@@ -44,5 +44,13 @@ interviewRouter.post("/resume/pdf/:interviewReportId", authMiddleware.authUser, 
  */
 interviewRouter.post("/chat", authMiddleware.authUser, interviewController.chatInterviewController)
 
+/**
+ * @route POST /api/interview/mock/evaluate
+ * @description Evaluate a candidate's mock interview answer using AI and return score + feedback.
+ * @access private
+ */
+interviewRouter.post("/mock/evaluate", authMiddleware.authUser, interviewController.evaluateMockAnswerController)
 
-module.exports = interviewRouter
+
+module.exports = interviewRouter
+

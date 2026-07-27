@@ -70,4 +70,18 @@ export const generateResumePdf = async ({ interviewReportId }) => {
 export const chatWithCoach = async ({ interviewId, message, chatHistory }) => {
     const response = await api.post("/api/interview/chat", { interviewId, message, chatHistory })
     return response.data
-}
+}
+
+/**
+ * @description Service to evaluate a mock interview answer and get AI feedback.
+ */
+export const evaluateMockAnswerApi = async ({ question, userAnswer, interviewId, questionType }) => {
+    const response = await api.post("/api/interview/mock/evaluate", {
+        question,
+        userAnswer,
+        interviewId,
+        questionType,
+    })
+    return response.data
+}
+
