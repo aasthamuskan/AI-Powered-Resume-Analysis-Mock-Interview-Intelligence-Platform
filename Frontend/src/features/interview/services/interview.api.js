@@ -84,4 +84,19 @@ export const evaluateMockAnswerApi = async ({ question, userAnswer, interviewId,
     })
     return response.data
 }
+
+/**
+ * @description Service to evaluate a face-based interview answer with expression + voice behavioral metrics.
+ */
+export const evaluateFaceInterviewApi = async ({ question, transcript, expressionMetrics, voiceMetrics, interviewId, questionType }) => {
+    const response = await api.post("/api/interview/mock/face-evaluate", {
+        question,
+        transcript,
+        expressionMetrics,
+        voiceMetrics,
+        interviewId,
+        questionType,
+    })
+    return response.data
+}
 

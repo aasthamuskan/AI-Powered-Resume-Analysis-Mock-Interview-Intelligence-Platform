@@ -699,6 +699,34 @@ $red:     #EF4444;
     svg { flex-shrink: 0; color: $red; }
 }
 
+// Inline field validation error
+.form-validation-error {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.45rem;
+    margin-top: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: rgba($red, 0.06);
+    border: 1px solid rgba($red, 0.2);
+    border-left: 3px solid $red;
+    border-radius: 0 8px 8px 0;
+    color: #FCA5A5;
+    font-size: 0.78rem;
+    font-weight: 500;
+    line-height: 1.45;
+    animation: validationShake 0.35s ease;
+
+    svg { flex-shrink: 0; color: $red; margin-top: 1px; }
+}
+
+@keyframes validationShake {
+    0%, 100% { transform: translateX(0); }
+    20%       { transform: translateX(-4px); }
+    40%       { transform: translateX(4px); }
+    60%       { transform: translateX(-3px); }
+    80%       { transform: translateX(2px); }
+}
+
 // Info box
 .info-box {
     display: flex;
@@ -740,11 +768,18 @@ $red:     #EF4444;
     gap: 0.6rem;
     margin-top: 1.25rem;
 
-    &:hover {
+    &:hover:not(:disabled) {
         box-shadow: 0 6px 36px rgba($cyan, 0.42);
         transform: translateY(-1px);
     }
-    &:active { transform: scale(0.98); }
+    &:active:not(:disabled) { transform: scale(0.98); }
+
+    &:disabled {
+        opacity: 0.65;
+        cursor: not-allowed;
+        box-shadow: none;
+        transform: none;
+    }
 }
 
 // ── RECENT REPORTS ────────────────────────────────────────────────────────────

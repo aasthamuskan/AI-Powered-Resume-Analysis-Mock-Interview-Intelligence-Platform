@@ -1,5 +1,5 @@
 const pdfParse = require("pdf-parse/lib/pdf-parse.js")
-const { generateInterviewReport, generateResumePdf, handlePlanChat, evaluateMockAnswer } = require("../services/ai.service")
+const { generateInterviewReport, generateResumePdf, handlePlanChat, evaluateMockAnswer, evaluateFaceInterview } = require("../services/ai.service")
 const interviewReportModel = require("../models/interviewReport.model")
 
 
@@ -12,9 +12,20 @@ async function generateInterViewReportController(req, res) {
 
     const { selfDescription, jobDescription } = req.body
 
-    // Validation
+    // Validation — JD must be present and meaningful
     if (!jobDescription || jobDescription.trim() === "") {
         return res.status(400).json({ message: "Job description is required." })
+    }
+
+    const jdTrimmed = jobDescription.trim()
+    const jdWords   = jdTrimmed.split(/\s+/).filter(w => w.length > 1)
+
+    if (jdTrimmed.length < 50) {
+        return res.status(400).json({ message: `Job description is too short (${jdTrimmed.length} chars). Please paste the full job description.` })
+    }
+
+    if (jdWords.length < 10) {
+        return res.status(400).json({ message: `That doesn't look like a real job description (only ${jdWords.length} words detected). Please paste the actual JD text.` })
     }
 
     let resumeContent = ""
@@ -245,11 +256,48 @@ async function evaluateMockAnswerController(req, res) {
 }
 
 
+/**
+ * @description Evaluate a face-based mock interview answer with expression + voice behavioral data.
+ */
+async function evaluateFaceInterviewController(req, res) {
+    try {
+        const { question, transcript, expressionMetrics, voiceMetrics, interviewId, questionType } = req.body
+
+        if (!question || typeof question !== "string" || question.trim() === "") {
+            return res.status(400).json({ message: "question is required." })
+        }
+
+        // Fetch job description for context
+        let jobDescription = ""
+        if (interviewId) {
+            const report = await interviewReportModel.findById(interviewId).select("jobDescription").lean()
+            if (report?.jobDescription) jobDescription = report.jobDescription
+        }
+
+        const evaluation = await evaluateFaceInterview({
+            question: question.trim(),
+            transcript: transcript || "",
+            expressionMetrics: expressionMetrics || {},
+            voiceMetrics: voiceMetrics || {},
+            jobDescription,
+            questionType: questionType || "technical",
+        })
+
+        return res.status(200).json(evaluation)
+
+    } catch (err) {
+        console.error("evaluateFaceInterviewController error:", err)
+        return res.status(500).json({ message: err.message || "Failed to evaluate face interview answer." })
+    }
+}
+
+
 module.exports = { 
     generateInterViewReportController, 
     getInterviewReportByIdController, 
     getAllInterviewReportsController, 
     generateResumePdfController,
     chatInterviewController,
-    evaluateMockAnswerController
+    evaluateMockAnswerController,
+    evaluateFaceInterviewController
 }

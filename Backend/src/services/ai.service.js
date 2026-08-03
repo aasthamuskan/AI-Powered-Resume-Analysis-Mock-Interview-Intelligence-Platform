@@ -375,4 +375,127 @@ Example format:
     }
 }
 
-module.exports = { generateInterviewReport, generateResumePdf, handlePlanChat, evaluateMockAnswer }
+// ─── Face Interview Evaluator ────────────────────────────────────────────────
+
+const FaceEvaluationSchema = z.object({
+    contentScore:        z.number().int().min(1).max(10),
+    confidenceScore:     z.number().int().min(1).max(10),
+    communicationScore:  z.number().int().min(1).max(10),
+    eyeContactScore:     z.number().int().min(1).max(10),
+    overallScore:        z.number().int().min(1).max(10),
+    verdict:             z.enum(["excellent", "good", "average", "needs_work"]),
+    contentFeedback:     z.string().min(1),
+    behaviorFeedback:    z.string().min(1),
+    keyStrengths:        z.array(z.string()).min(1).max(4),
+    improvements:        z.array(z.string()).min(1).max(5),
+    followUp:            z.string(),
+    behaviorInsights:    z.array(z.object({
+        type:    z.enum(["positive", "negative", "neutral"]),
+        insight: z.string(),
+    })).min(1).max(5),
+})
+
+/**
+ * @description Evaluate a face-based mock interview answer with behavioral signals.
+ * @param {string} question - Interview question asked
+ * @param {string} transcript - Candidate's spoken answer text
+ * @param {object} expressionMetrics - Aggregated face expression data
+ * @param {object} voiceMetrics - Aggregated voice analysis data
+ * @param {string} jobDescription - Job role context
+ * @param {string} questionType - 'technical' or 'behavioral'
+ */
+async function evaluateFaceInterview({ question, transcript, expressionMetrics, voiceMetrics, jobDescription, questionType }) {
+    const {
+        nervousnessScore = 0,
+        eyeContactRatio = 1,
+        avgFearful = 0,
+        avgHappy = 0,
+        avgNeutral = 1,
+        expressionChanges = 0,
+        dominantExpression = "neutral"
+    } = expressionMetrics || {}
+
+    const {
+        speakingRate = 130,
+        pauseRatio = 0.2,
+        rmsVariance = 0,
+        silenceCount = 0,
+        totalDurationSec = 30
+    } = voiceMetrics || {}
+
+    const prompt = `You are a world-class behavioral interview coach and senior technical interviewer at a top tech company. 
+You have access to both the candidate's spoken answer AND real-time behavioral data captured during the interview.
+
+═══════════════════ INTERVIEW CONTEXT ═══════════════════
+QUESTION TYPE: ${questionType || "technical"}
+QUESTION ASKED: ${question}
+JOB CONTEXT: ${jobDescription || "Software engineering role"}
+
+═══════════════════ CANDIDATE'S ANSWER ═══════════════════
+SPOKEN TRANSCRIPT: ${transcript || "(no answer provided — candidate remained silent)"}
+
+═══════════════════ BEHAVIORAL SIGNALS (Real-time data) ═══════════════════
+FACIAL EXPRESSION DATA:
+- Nervousness Score: ${nervousnessScore.toFixed(1)}/100 (0=calm, 100=very nervous)
+- Eye Contact Maintained: ${(eyeContactRatio * 100).toFixed(0)}% of answer time
+- Dominant Expression: ${dominantExpression}
+- Average Fearful Expression: ${(avgFearful * 100).toFixed(1)}%
+- Average Happy/Confident Expression: ${(avgHappy * 100).toFixed(1)}%
+- Average Neutral Expression: ${(avgNeutral * 100).toFixed(1)}%
+- Expression Changes (micro-expressions count): ${expressionChanges}
+
+VOICE ANALYSIS DATA:
+- Speaking Rate: ${speakingRate} words/min (ideal: 120-160 wpm)
+- Pause Ratio: ${(pauseRatio * 100).toFixed(1)}% of answer time spent pausing
+- Voice Stability (lower=more stable): ${rmsVariance.toFixed(3)}
+- Silence Count (unintended pauses): ${silenceCount}
+- Total Answer Duration: ${totalDurationSec.toFixed(1)} seconds
+
+═══════════════════ EVALUATION TASK ═══════════════════
+Provide a holistic evaluation combining BOTH the answer content AND behavioral signals.
+
+Return a JSON object with EXACTLY these fields:
+- "contentScore": integer 1-10 — quality and completeness of the verbal answer
+- "confidenceScore": integer 1-10 — confidence shown via face + voice (low nervousness, stable voice, positive expressions = high)
+- "communicationScore": integer 1-10 — clarity, pace, structure of communication
+- "eyeContactScore": integer 1-10 — ${(eyeContactRatio * 100).toFixed(0)}% eye contact. Map: >80%=9-10, 60-80%=7-8, 40-60%=5-6, <40%=1-4
+- "overallScore": integer 1-10 — weighted holistic score (content 40%, confidence 25%, communication 20%, eyeContact 15%)
+- "verdict": "excellent" (9-10), "good" (7-8), "average" (5-6), "needs_work" (1-4) — based on overallScore
+- "contentFeedback": 2-3 sentences about the answer content quality
+- "behaviorFeedback": 2-3 sentences interpreting the behavioral signals — mention specific data (e.g., "Your ${(eyeContactRatio*100).toFixed(0)}% eye contact shows...")
+- "keyStrengths": array of 2-3 specific strengths (content OR behavioral)
+- "improvements": array of 2-4 specific, actionable improvements (content AND behavioral)
+- "followUp": a natural follow-up question an interviewer would ask
+- "behaviorInsights": array of 2-5 objects, each with "type" ("positive"|"negative"|"neutral") and "insight" string — specific behavioral observations
+
+Be direct, specific, and reference the actual behavioral data numbers. Return ONLY valid JSON.`
+
+    try {
+        const completion = await groq.chat.completions.create({
+            model: MODEL,
+            messages: [
+                {
+                    role: "system",
+                    content: "You are an expert behavioral interview coach. Always respond with valid JSON only, no markdown, no extra text."
+                },
+                { role: "user", content: prompt }
+            ],
+            response_format: { type: "json_object" },
+            temperature: 0.45,
+        })
+
+        const raw = JSON.parse(completion.choices[0].message.content)
+        const validated = FaceEvaluationSchema.parse(raw)
+        return validated
+
+    } catch (err) {
+        if (err instanceof z.ZodError) {
+            console.error("Face eval validation failed:", err.errors)
+            throw new Error("AI returned an invalid face evaluation structure.")
+        }
+        console.error("evaluateFaceInterview error:", err.message)
+        throw new Error("Failed to evaluate face interview answer.")
+    }
+}
+
+module.exports = { generateInterviewReport, generateResumePdf, handlePlanChat, evaluateMockAnswer, evaluateFaceInterview }

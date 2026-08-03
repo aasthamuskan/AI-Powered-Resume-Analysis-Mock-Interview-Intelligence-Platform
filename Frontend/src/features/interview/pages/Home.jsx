@@ -78,9 +78,14 @@ const Home = () => {
 
     useEffect(() => { getReports() }, [])
 
+    const [validationErrors, setValidationErrors] = useState({})
+
     const handleFileChange = (e) => {
         const file = e.target.files[0]
-        if (file) setSelectedFile(file)
+        if (file) {
+            setSelectedFile(file)
+            setValidationErrors(prev => ({ ...prev, resume: null }))
+        }
     }
 
     const handleRemoveFile = (e) => {
@@ -93,10 +98,40 @@ const Home = () => {
     const handleJobDescChange = (e) => {
         setJobDescription(e.target.value)
         setCharCount(e.target.value.length)
+        const words = e.target.value.trim().split(/\s+/).filter(w => w.length > 1)
+        if (e.target.value.trim().length >= 80 && words.length >= 8) {
+            setValidationErrors(prev => ({ ...prev, jd: null }))
+        }
     }
 
     const handleGenerateReport = async () => {
         const resumeFile = resumeInputRef.current.files[0]
+        const errors = {}
+
+        // Validate JD — must be meaningful: at least 80 chars AND 8+ real words
+        const jdTrimmed = jobDescription.trim()
+        const jdWords   = jdTrimmed.split(/\s+/).filter(w => w.length > 1)
+        if (!jdTrimmed) {
+            errors.jd = 'Job description is required.'
+        } else if (jdTrimmed.length < 80) {
+            errors.jd = `Job description is too short (${jdTrimmed.length}/80 chars). Please paste the actual job description.`
+        } else if (jdWords.length < 8) {
+            errors.jd = `That doesn't look like a real job description (only ${jdWords.length} words found). Please paste the actual JD text.`
+        }
+
+        // Validate that at least resume or self-description is provided
+        if (!resumeFile && !selfDescription.trim()) {
+            errors.profile = 'Please upload your resume PDF or write a self description — at least one is required.'
+        }
+
+        if (Object.keys(errors).length > 0) {
+            setValidationErrors(errors)
+            // Scroll to the form
+            document.getElementById('start-form')?.scrollIntoView({ behavior: 'smooth' })
+            return
+        }
+
+        setValidationErrors({})
         const interviewReport = await generateReport({ jobDescription, selfDescription, resumeFile })
         if (interviewReport?._id) navigate(`/interview/${interviewReport._id}`)
     }
@@ -294,14 +329,20 @@ const Home = () => {
                                 <div style={{ marginTop: '1rem' }}>
                                     <div className="form-card__label" style={{ display: 'flex', alignItems: 'center', marginBottom: '0.5rem' }}>
                                         Self Description
-                                        <span className="form-card__optional">Optional</span>
+                                        <span className="form-card__optional">Optional if resume uploaded</span>
                                     </div>
                                     <textarea
                                         className="home-textarea"
-                                        style={{ minHeight: '80px' }}
+                                        style={{ minHeight: '80px', borderColor: validationErrors.profile ? 'rgba(239,68,68,0.5)' : undefined }}
                                         placeholder="Briefly describe your experience if you don't have a resume..."
-                                        onChange={e => setSelfDescription(e.target.value)}
+                                        onChange={e => { setSelfDescription(e.target.value); if (e.target.value.trim()) setValidationErrors(prev => ({ ...prev, profile: null })) }}
                                     />
+                                    {validationErrors.profile && (
+                                        <div className="form-validation-error">
+                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                                            {validationErrors.profile}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
@@ -313,25 +354,45 @@ const Home = () => {
                                 </div>
                                 <textarea
                                     className="home-textarea"
-                                    style={{ flex: 1, minHeight: '220px' }}
-                                    placeholder="Paste the full job description here..."
+                                    style={{ flex: 1, minHeight: '220px', borderColor: validationErrors.jd ? 'rgba(239,68,68,0.5)' : undefined }}
+                                    placeholder="Paste the full job description here — the more detail, the better the analysis..."
                                     onChange={handleJobDescChange}
                                     maxLength={5000}
                                 />
-                                <div className="char-counter">{charCount} / 5000 chars</div>
+                                <div className="char-counter" style={{ color: charCount > 0 && charCount < 80 ? '#EF4444' : charCount >= 80 ? '#10B981' : undefined }}>
+                                    {charCount} / 5000 chars
+                                    {charCount > 0 && charCount < 80 && <span style={{ marginLeft: '0.5rem', fontSize: '0.65rem' }}>— min 80 chars needed</span>}
+                                    {charCount >= 80 && <span style={{ marginLeft: '0.5rem', fontSize: '0.65rem' }}>✓ Good length</span>}
+                                </div>
+
+                                {validationErrors.jd && (
+                                    <div className="form-validation-error">
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                                        {validationErrors.jd}
+                                    </div>
+                                )}
 
                                 <div className="info-box" style={{ marginTop: '0.75rem' }}>
                                     <span className="info-box__icon">
                                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12" stroke="#07070F" strokeWidth="2"/><line x1="12" y1="16" x2="12.01" y2="16" stroke="#07070F" strokeWidth="2"/></svg>
                                     </span>
-                                    <p>Either a <strong>Resume</strong> or a <strong>Self Description</strong> is required to generate a plan.</p>
+                                    <p>Paste the <strong>complete job description</strong> for the most accurate match score and interview questions.</p>
                                 </div>
                             </div>
                         </div>
 
-                        <button id="generate-btn" className="generate-btn" onClick={handleGenerateReport}>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>
-                            Analyse Alignment
+                        <button id="generate-btn" className="generate-btn" onClick={handleGenerateReport} disabled={loading}>
+                            {loading ? (
+                                <>
+                                    <span style={{ width: 16, height: 16, border: '2px solid rgba(255,255,255,0.3)', borderTop: '2px solid white', borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'inline-block' }} />
+                                    Analysing...
+                                </>
+                            ) : (
+                                <>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>
+                                    Analyse Alignment
+                                </>
+                            )}
                         </button>
                     </div>
                 </div>

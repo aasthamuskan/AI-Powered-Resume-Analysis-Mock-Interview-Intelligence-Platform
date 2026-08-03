@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import '../style/interview.scss'
+import '../style/mockinterview.scss'
 import { useInterview } from '../hooks/useInterview.js'
 import { useAuth } from '../../auth/hooks/useAuth'
 import { useNavigate, useParams } from 'react-router'
@@ -58,6 +59,12 @@ const IconDownload = () => (
         <line x1="12" y1="15" x2="12" y2="3"/>
     </svg>
 )
+const IconVideo = () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="23 7 16 12 23 17 23 7"/>
+        <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+    </svg>
+)
 const IconStar = () => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
@@ -77,11 +84,13 @@ const IconBook = () => (
 
 // ── Nav Items ──────────────────────────────────────────────────────────────────
 const NAV_ITEMS = [
-    { id: 'overview',   label: 'Dashboard',   icon: <IconDashboard /> },
-    { id: 'technical',  label: 'Deep Work',   icon: <IconCode /> },
-    { id: 'behavioral', label: 'AI Insights', icon: <IconChat /> },
-    { id: 'gaps',       label: 'Library',     icon: <IconBook /> },
-    { id: 'roadmap',    label: 'Roadmap',     icon: <IconMap /> },
+    { id: 'overview',   label: 'Dashboard',      icon: <IconDashboard /> },
+    { id: 'technical',  label: 'Deep Work',      icon: <IconCode /> },
+    { id: 'behavioral', label: 'AI Insights',    icon: <IconChat /> },
+    { id: 'gaps',       label: 'Library',        icon: <IconBook /> },
+    { id: 'roadmap',    label: 'Roadmap',        icon: <IconMap /> },
+    { id: 'mock',       label: 'Mock Interview', icon: <IconStar /> },
+    { id: 'face',       label: 'Face Interview', icon: <IconVideo /> },
 ]
 
 const SUGGESTIONS = [
@@ -192,10 +201,310 @@ const RoadmapDay = ({ day, index }) => {
     )
 }
 
+// ── Mock Interview Panel ────────────────────────────────────────────────────────
+const MockInterviewPanel = ({ report, interviewId, evaluateMockAnswer }) => {
+    const allQ = report
+        ? [
+            ...(report.technicalQuestions  || []).map(q => ({ ...q, type: 'technical' })),
+            ...(report.behavioralQuestions || []).map(q => ({ ...q, type: 'behavioral' })),
+          ]
+        : []
+
+    const [qIdx,        setQIdx]        = useState(0)
+    const [answer,      setAnswer]      = useState('')
+    const [evaluation,  setEvaluation]  = useState(null)
+    const [evaluating,  setEvaluating]  = useState(false)
+    const [results,     setResults]     = useState([])
+    const [stage,       setStage]       = useState('quiz')   // 'quiz' | 'complete'
+    const [isListening, setIsListening] = useState(false)
+    const recognitionRef = useRef(null)
+
+    const currentQ = allQ[qIdx]
+
+    const stoppedRef  = useRef(false)
+    const finalTextRef = useRef('')
+
+    const createRecognition = useCallback(() => {
+        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition
+        if (!SpeechRec || stoppedRef.current) return
+
+        if (recognitionRef.current) {
+            try { recognitionRef.current.abort() } catch {}
+        }
+
+        const r = new SpeechRec()
+        r.continuous      = true
+        r.interimResults  = true
+        r.lang            = 'en-US'
+        r.maxAlternatives = 1
+
+        r.onresult = (e) => {
+            let interim = ''
+            for (let i = e.resultIndex; i < e.results.length; i++) {
+                if (e.results[i].isFinal) finalTextRef.current += e.results[i][0].transcript + ' '
+                else interim += e.results[i][0].transcript
+            }
+            setAnswer(finalTextRef.current + interim)
+        }
+
+        r.onerror = (e) => {
+            // no-speech / aborted are expected — ignore
+            if (e.error === 'no-speech' || e.error === 'aborted') return
+            console.warn('SpeechRec error:', e.error)
+        }
+
+        // Chrome auto-stops after silence — restart unless intentionally stopped
+        r.onend = () => {
+            if (!stoppedRef.current) {
+                setTimeout(() => { if (!stoppedRef.current) createRecognition() }, 300)
+            } else {
+                setIsListening(false)
+            }
+        }
+
+        recognitionRef.current = r
+        try {
+            r.start()
+            setIsListening(true)
+        } catch (err) {
+            console.warn('SpeechRec start error:', err)
+        }
+    }, [])
+
+    const startVoice = useCallback(() => {
+        stoppedRef.current   = false
+        finalTextRef.current = answer  // preserve existing typed answer
+        createRecognition()
+    }, [answer, createRecognition])
+
+    const stopVoice = useCallback(() => {
+        stoppedRef.current = true
+        if (recognitionRef.current) {
+            try { recognitionRef.current.abort() } catch {}
+            recognitionRef.current = null
+        }
+        setIsListening(false)
+    }, [])
+
+    const handleSubmit = useCallback(async () => {
+        if (!currentQ || evaluating) return
+        stopVoice()
+        setEvaluating(true)
+        setEvaluation(null)
+        try {
+            const res = await evaluateMockAnswer({
+                question: currentQ.question,
+                userAnswer: answer.trim() || '(no answer provided)',
+                interviewId,
+                questionType: currentQ.type,
+            })
+            setEvaluation(res)
+            setResults(prev => [...prev, { question: currentQ.question, type: currentQ.type, ...res }])
+        } catch {
+            setEvaluation({ score: 0, verdict: 'needs_work', feedback: 'Evaluation failed. Please try again.', improvements: [], followUp: '' })
+        } finally {
+            setEvaluating(false)
+        }
+    }, [currentQ, evaluating, answer, interviewId, evaluateMockAnswer, stopVoice])
+
+    const handleNext = useCallback(() => {
+        if (qIdx + 1 >= allQ.length) { setStage('complete'); return }
+        setQIdx(i => i + 1)
+        setAnswer('')
+        setEvaluation(null)
+        setIsListening(false)
+    }, [qIdx, allQ])
+
+    const handleSkip = useCallback(() => {
+        setResults(prev => [...prev, { question: currentQ?.question, type: currentQ?.type, score: 0, verdict: 'needs_work', skipped: true }])
+        handleNext()
+    }, [currentQ, handleNext])
+
+    const handleRestart = () => { setQIdx(0); setAnswer(''); setEvaluation(null); setResults([]); setStage('quiz') }
+
+    const avgScore = results.filter(r => !r.skipped).length > 0
+        ? Math.round(results.filter(r => !r.skipped).reduce((a, r) => a + (r.score || 0), 0) / results.filter(r => !r.skipped).length * 10) / 10
+        : 0
+
+    const verdictColor = v => ({ excellent: '#10B981', good: '#00D4FF', average: '#F59E0B', needs_work: '#EF4444' })[v] || '#8B5CF6'
+
+    if (stage === 'complete') return (
+        <section className="mock-complete">
+            <div className="mock-complete__icon">✓</div>
+            <h2>Mock Interview Complete!</h2>
+            <p>{results.filter(r => !r.skipped).length} of {allQ.length} questions answered</p>
+            <div className="mock-complete__score">
+                <span style={{ color: avgScore >= 7 ? '#10B981' : avgScore >= 5 ? '#F59E0B' : '#EF4444' }}>{avgScore}</span>
+                <small>/10 avg</small>
+            </div>
+            <div className="mock-complete__breakdown">
+                {results.map((r, i) => (
+                    <div key={i} className="mock-complete__row">
+                        <span className={`mock-complete__vtag mock-complete__vtag--${r.verdict || 'needs_work'}`}>
+                            {r.skipped ? 'Skipped' : r.verdict?.replace('_', ' ')}
+                        </span>
+                        <span className="mock-complete__qtext">{r.question}</span>
+                        {!r.skipped && <span className="mock-complete__score-sm" style={{ color: verdictColor(r.verdict) }}>{r.score}/10</span>}
+                    </div>
+                ))}
+            </div>
+            <div className="mock-complete__actions">
+                <button className="mock-btn-primary" onClick={handleRestart}>Retry Interview</button>
+            </div>
+        </section>
+    )
+
+    return (
+        <section className="mock-panel">
+            {/* Header */}
+            <div className="mock-panel__header">
+                <div className="mock-panel__header-left">
+                    <h2>Mock Interview</h2>
+                    <span className="mock-panel__sub">AI evaluates your answers in real-time</span>
+                </div>
+                <div className="mock-panel__progress-wrap">
+                    <span className="mock-panel__q-count">Q{qIdx + 1} / {allQ.length}</span>
+                    <div className="mock-panel__progress-bar">
+                        <div className="mock-panel__progress-fill" style={{ width: `${((qIdx + 1) / allQ.length) * 100}%` }} />
+                    </div>
+                </div>
+            </div>
+
+            {/* Two-column layout */}
+            <div className="mock-panel__body">
+
+                {/* LEFT — Question + Answer */}
+                <div className="mock-panel__left">
+                    {/* Question card */}
+                    <div className="mock-q-card">
+                        <div className="mock-q-card__meta">
+                            <span className={`mock-q-card__type mock-q-card__type--${currentQ?.type}`}>{currentQ?.type}</span>
+                            <span className="mock-q-card__num">Question {qIdx + 1}</span>
+                        </div>
+                        <p className="mock-q-card__text">{currentQ?.question}</p>
+                    </div>
+
+                    {/* Answer area */}
+                    {!evaluation && (
+                        <div className="mock-answer-area">
+                            <div className="mock-answer-area__label">
+                                <span>Your Answer</span>
+                                <button
+                                    className={`mock-mic-btn ${isListening ? 'mock-mic-btn--active' : ''}`}
+                                    onClick={isListening ? stopVoice : startVoice}
+                                    title={isListening ? 'Stop recording' : 'Start voice input'}
+                                >
+                                    {isListening ? '⏹ Stop' : '🎤 Speak'}
+                                </button>
+                            </div>
+                            <textarea
+                                className="mock-textarea"
+                                placeholder="Type your answer here, or click 🎤 Speak to use voice input..."
+                                value={answer}
+                                onChange={e => setAnswer(e.target.value)}
+                                disabled={evaluating}
+                                rows={6}
+                            />
+                            {isListening && (
+                                <div className="mock-listening-indicator">
+                                    <span className="mock-listening-dot" />
+                                    Listening... speak your answer
+                                </div>
+                            )}
+                            <div className="mock-answer-footer">
+                                <span className="mock-word-count">{answer.trim() ? answer.trim().split(/\s+/).filter(Boolean).length : 0} words</span>
+                                <div className="mock-action-btns">
+                                    <button className="mock-btn-skip" onClick={handleSkip} disabled={evaluating}>Skip →</button>
+                                    <button className="mock-btn-submit" onClick={handleSubmit} disabled={evaluating || (!answer.trim())}>
+                                        {evaluating
+                                            ? <><span className="mock-spinner" /> Evaluating...</>
+                                            : '✓ Submit Answer'
+                                        }
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Evaluation result */}
+                    {evaluation && (
+                        <div className={`mock-eval-card mock-eval-card--${evaluation.verdict}`}>
+                            <div className="mock-eval-card__header">
+                                <h3>AI Evaluation</h3>
+                                <div className="mock-eval-score">
+                                    <span className="mock-eval-score__num" style={{ color: verdictColor(evaluation.verdict) }}>
+                                        {evaluation.score}
+                                    </span>
+                                    <span className="mock-eval-score__denom">/10</span>
+                                    <span className="mock-eval-score__verdict" style={{ background: `${verdictColor(evaluation.verdict)}20`, color: verdictColor(evaluation.verdict), border: `1px solid ${verdictColor(evaluation.verdict)}40` }}>
+                                        {evaluation.verdict?.replace('_', ' ')}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <p className="mock-eval-feedback">{evaluation.feedback}</p>
+
+                            {evaluation.improvements?.length > 0 && (
+                                <div className="mock-eval-improvements">
+                                    <div className="mock-eval-improvements__label">Improvements</div>
+                                    {evaluation.improvements.map((imp, i) => (
+                                        <div key={i} className="mock-eval-imp-item">↗ {imp}</div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {evaluation.followUp && (
+                                <div className="mock-eval-followup">
+                                    <span className="mock-eval-followup__label">Follow-up question</span>
+                                    <p>{evaluation.followUp}</p>
+                                </div>
+                            )}
+
+                            <button className="mock-btn-next" onClick={handleNext}>
+                                {qIdx + 1 >= allQ.length ? '✓ Finish Session' : 'Next Question →'}
+                            </button>
+                        </div>
+                    )}
+                </div>
+
+                {/* RIGHT — Hint / Model Answer */}
+                <div className="mock-panel__right">
+                    <div className="mock-hint-card">
+                        <div className="mock-hint-card__label">💡 Interviewer Intent</div>
+                        <p className="mock-hint-card__text">{currentQ?.intention}</p>
+                    </div>
+                    {evaluation && (
+                        <div className="mock-hint-card mock-hint-card--answer">
+                            <div className="mock-hint-card__label">📖 Model Answer</div>
+                            <p className="mock-hint-card__text">{currentQ?.answer}</p>
+                        </div>
+                    )}
+                    <div className="mock-sessions-summary">
+                        <div className="mock-sessions-summary__label">Session Progress</div>
+                        {results.map((r, i) => (
+                            <div key={i} className="mock-sessions-summary__item">
+                                <span className="mock-sessions-summary__num">Q{i + 1}</span>
+                                <div className="mock-sessions-summary__bar">
+                                    <div className="mock-sessions-summary__fill"
+                                        style={{ width: r.skipped ? '0%' : `${(r.score / 10) * 100}%`, background: verdictColor(r.verdict) }}
+                                    />
+                                </div>
+                                <span className="mock-sessions-summary__score" style={{ color: verdictColor(r.verdict) }}>
+                                    {r.skipped ? '-' : `${r.score}/10`}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        </section>
+    )
+}
+
 // ── Main Component ─────────────────────────────────────────────────────────────
 const Interview = () => {
     const [activeNav, setActiveNav] = useState('overview')
-    const { report, getReportById, loading, getResumePdf, chatWithAI } = useInterview()
+    const { report, getReportById, loading, getResumePdf, chatWithAI, evaluateMockAnswer } = useInterview()
     const { handleLogout, user } = useAuth()
     const { interviewId } = useParams()
     const navigate = useNavigate()
@@ -336,6 +645,56 @@ const Interview = () => {
                         {/* OVERVIEW / DASHBOARD */}
                         {activeNav === 'overview' && (
                             <>
+                                {/* Face Interview CTA Banner */}
+                                <div
+                                    id="face-interview-cta"
+                                    style={{
+                                        background: 'linear-gradient(135deg, rgba(139,92,246,0.12), rgba(99,102,241,0.08))',
+                                        border: '1px solid rgba(139,92,246,0.25)',
+                                        borderRadius: '18px',
+                                        padding: '1.25rem 1.5rem',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        gap: '1rem',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s ease',
+                                        marginBottom: '0.5rem',
+                                    }}
+                                    onClick={() => navigate(`/interview/${interviewId}/face-mock`)}
+                                    onMouseEnter={e => e.currentTarget.style.boxShadow = '0 0 28px rgba(139,92,246,0.2)'}
+                                    onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}
+                                >
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                        <div style={{
+                                            width: 46, height: 46,
+                                            borderRadius: 14,
+                                            background: 'linear-gradient(135deg, rgba(139,92,246,0.2), rgba(99,102,241,0.3))',
+                                            border: '1px solid rgba(139,92,246,0.3)',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            color: '#8B5CF6',
+                                        }}>
+                                            <IconVideo />
+                                        </div>
+                                        <div>
+                                            <div style={{ fontWeight: 700, fontSize: '0.92rem', marginBottom: '0.2rem', color: '#F8FAFC' }}>🎥 Face Interview Mode</div>
+                                            <div style={{ fontSize: '0.76rem', color: 'rgba(255,255,255,0.4)' }}>Live facial expression + voice analysis · AI behavioral scoring</div>
+                                        </div>
+                                    </div>
+                                    <div style={{
+                                        padding: '0.55rem 1.2rem',
+                                        background: 'linear-gradient(135deg, #8B5CF6, #6366F1)',
+                                        borderRadius: 10,
+                                        fontSize: '0.82rem',
+                                        fontWeight: 700,
+                                        color: 'white',
+                                        whiteSpace: 'nowrap',
+                                        boxShadow: '0 4px 18px rgba(139,92,246,0.3)',
+                                        flexShrink: 0,
+                                    }}>
+                                        Start Now →
+                                    </div>
+                                </div>
                                 {/* Stat Cards */}
                                 <div className="stat-cards">
                                     {/* Match Score */}
@@ -457,6 +816,50 @@ const Interview = () => {
                                     {report.preparationPlan.map((day, i) => (
                                         <RoadmapDay key={day.day} day={day} index={i} />
                                     ))}
+                                </div>
+                            </section>
+                        )}
+                        {/* TEXT MOCK INTERVIEW PANEL */}
+                        {activeNav === 'mock' && (
+                            <MockInterviewPanel
+                                report={report}
+                                interviewId={interviewId}
+                                evaluateMockAnswer={evaluateMockAnswer}
+                            />
+                        )}
+
+                        {/* FACE INTERVIEW NAV SHORTCUT */}
+                        {activeNav === 'face' && (
+                            <section style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60%' }}>
+                                <div style={{ textAlign: 'center', maxWidth: 420 }}>
+                                    <div style={{
+                                        width: 80, height: 80, borderRadius: 24,
+                                        background: 'linear-gradient(135deg, rgba(139,92,246,0.15), rgba(99,102,241,0.25))',
+                                        border: '1px solid rgba(139,92,246,0.25)',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        margin: '0 auto 1.5rem', color: '#8B5CF6',
+                                        boxShadow: '0 0 40px rgba(139,92,246,0.15)'
+                                    }}>
+                                        <IconVideo style={{ width: 36, height: 36 }} />
+                                    </div>
+                                    <h2 style={{ fontSize: '1.4rem', fontWeight: 800, marginBottom: '0.5rem', background: 'linear-gradient(135deg, #8B5CF6, #00D4FF)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Face Interview Mode</h2>
+                                    <p style={{ fontSize: '0.88rem', color: 'rgba(255,255,255,0.4)', marginBottom: '2rem', lineHeight: 1.65 }}>Experience a real interview with AI analyzing your facial expressions, eye contact, nervousness levels, and voice in real-time.</p>
+                                    <button
+                                        id="launch-face-interview-btn"
+                                        style={{
+                                            padding: '1rem 2.5rem',
+                                            background: 'linear-gradient(135deg, #8B5CF6, #6366F1)',
+                                            color: 'white', border: 'none', borderRadius: 14,
+                                            fontSize: '1rem', fontWeight: 700, cursor: 'pointer',
+                                            boxShadow: '0 4px 24px rgba(139,92,246,0.35)',
+                                            transition: 'all 0.2s ease',
+                                            fontFamily: 'Inter, sans-serif',
+                                            display: 'inline-flex', alignItems: 'center', gap: '0.6rem'
+                                        }}
+                                        onClick={() => navigate(`/interview/${interviewId}/face-mock`)}
+                                    >
+                                        🎥 Launch Face Interview
+                                    </button>
                                 </div>
                             </section>
                         )}

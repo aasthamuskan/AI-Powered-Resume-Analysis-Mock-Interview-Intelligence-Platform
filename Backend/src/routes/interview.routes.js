@@ -51,6 +51,13 @@ interviewRouter.post("/chat", authMiddleware.authUser, interviewController.chatI
  */
 interviewRouter.post("/mock/evaluate", authMiddleware.authUser, interviewController.evaluateMockAnswerController)
 
+/**
+ * @route POST /api/interview/mock/face-evaluate
+ * @description Evaluate a face-based interview answer with expression + voice behavioral signals.
+ * @access private
+ */
+interviewRouter.post("/mock/face-evaluate", authMiddleware.authUser, interviewController.evaluateFaceInterviewController)
+
 
 module.exports = interviewRouter
 
