@@ -1,7 +1,5 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Deploy Frontend → Vercel
-# Runs only when main branch is pushed (after merge)
-# Builds Vite and deploys to Vercel via CLI
 # ─────────────────────────────────────────────────────────────────────────────
 name: Deploy Frontend → Vercel
 
@@ -9,10 +7,8 @@ on:
   push:
     branches: [main]
     paths:
-      - 'Frontend/**'         # only trigger when frontend code changes
+      - 'Frontend/**'
       - '.github/workflows/deploy-frontend.yml'
-
-  # Allow manual trigger from GitHub UI
   workflow_dispatch:
 
 jobs:
@@ -28,7 +24,25 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # ── Guard: skip entire job if secrets not configured ──────────────────
+      - name: Check required secrets
+        id: check-secrets
+        shell: bash
+        run: |
+          MISSING=""
+          [ -z "${{ secrets.VERCEL_TOKEN }}"       ] && MISSING="$MISSING VERCEL_TOKEN"
+          [ -z "${{ secrets.VERCEL_ORG_ID }}"      ] && MISSING="$MISSING VERCEL_ORG_ID"
+          [ -z "${{ secrets.VERCEL_PROJECT_ID }}"  ] && MISSING="$MISSING VERCEL_PROJECT_ID"
+          if [ -n "$MISSING" ]; then
+            echo "⚠️  Skipping deploy — these GitHub Secrets are not configured:$MISSING"
+            echo "👉  Go to repo Settings → Secrets → Actions and add them."
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Setup Node.js 20
+        if: steps.check-secrets.outputs.skip == 'false'
         uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -36,35 +50,44 @@ jobs:
           cache-dependency-path: Frontend/package-lock.json
 
       - name: Install dependencies
+        if: steps.check-secrets.outputs.skip == 'false'
         run: npm ci
 
       - name: Build production bundle
+        if: steps.check-secrets.outputs.skip == 'false'
         run: npm run build
         env:
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
 
       - name: Install Vercel CLI
+        if: steps.check-secrets.outputs.skip == 'false'
         run: npm install -g vercel@latest
 
-      - name: Pull Vercel environment info
+      - name: Pull Vercel environment
+        if: steps.check-secrets.outputs.skip == 'false'
         run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID:     ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
       - name: Deploy to Vercel (Production)
+        if: steps.check-secrets.outputs.skip == 'false'
         run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
         env:
           VERCEL_ORG_ID:     ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
-# ─────────────────────────────────────────────────────────────────────────────
-# HOW TO SET UP (one-time):
-#
-# 1. Install Vercel CLI locally:  npm i -g vercel
-# 2. Inside /Frontend run:        vercel link
-#    → This creates .vercel/project.json with your org/project IDs
-#
-# 3. Add these GitHub Secrets (Settings → Secrets → Actions):
-#    VERCEL_TOKEN       → from https://vercel.com/account/tokens
-#    VERCEL_ORG_ID      → from .vercel/project.json  (orgId field)
-#    VERCEL_PROJECT_ID  → from .vercel/project.json  (projectId field)
-#    VITE_API_URL       → your backend URL e.g. https://prepiq-backend.onrender.com
-# ─────────────────────────────────────────────────────────────────────────────
+      - name: Deploy skipped notice
+        if: steps.check-secrets.outputs.skip == 'true'
+        run: |
+          echo ""
+          echo "╔══════════════════════════════════════════════════════╗"
+          echo "║  DEPLOY SKIPPED — Secrets not configured yet        ║"
+          echo "╠══════════════════════════════════════════════════════╣"
+          echo "║  Add these in: Settings → Secrets → Actions         ║"
+          echo "║                                                      ║"
+          echo "║  VERCEL_TOKEN      → vercel.com/account/tokens      ║"
+          echo "║  VERCEL_ORG_ID     → run: vercel link (in /Frontend)║"
+          echo "║  VERCEL_PROJECT_ID → from .vercel/project.json      ║"
+          echo "║  VITE_API_URL      → your backend URL               ║"
+          echo "╚══════════════════════════════════════════════════════╝"

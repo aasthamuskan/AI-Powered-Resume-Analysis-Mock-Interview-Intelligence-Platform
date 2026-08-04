@@ -1,7 +1,5 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Deploy Backend → Render.com
-# Runs only when main branch is pushed with Backend changes
-# Calls the Render deploy hook URL to trigger a new deploy
 # ─────────────────────────────────────────────────────────────────────────────
 name: Deploy Backend → Render
 
@@ -9,11 +7,9 @@ on:
   push:
     branches: [main]
     paths:
-      - 'Backend/**'          # only trigger when backend code changes
+      - 'Backend/**'
       - 'render.yaml'
       - '.github/workflows/deploy-backend.yml'
-
-  # Allow manual trigger from GitHub UI
   workflow_dispatch:
 
 jobs:
@@ -25,7 +21,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # ── Guard: skip if secret not configured ──────────────────────────────
+      - name: Check required secrets
+        id: check-secrets
+        shell: bash
+        run: |
+          if [ -z "${{ secrets.RENDER_DEPLOY_HOOK_URL }}" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Setup Node.js 20
+        if: steps.check-secrets.outputs.skip == 'false'
         uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -33,32 +41,37 @@ jobs:
           cache-dependency-path: Backend/package-lock.json
 
       - name: Install Backend dependencies
+        if: steps.check-secrets.outputs.skip == 'false'
         working-directory: Backend
         run: npm ci
 
       - name: Syntax check before deploy
+        if: steps.check-secrets.outputs.skip == 'false'
         working-directory: Backend
         run: node --check server.js
 
       - name: Trigger Render Deploy Hook
+        if: steps.check-secrets.outputs.skip == 'false'
+        shell: bash
         run: |
-          curl -s -o /dev/null -w "%{http_code}" \
-            --fail \
-            "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
-          echo "✅ Render deploy triggered successfully"
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${{ secrets.RENDER_DEPLOY_HOOK_URL }}")
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
+            echo "✅ Render deploy triggered — HTTP $HTTP_STATUS"
+          else
+            echo "❌ Render deploy hook returned HTTP $HTTP_STATUS"
+            exit 1
+          fi
 
-      - name: Notify deploy status
-        if: failure()
-        run: echo "❌ Backend deploy failed — check Render dashboard"
-
-# ─────────────────────────────────────────────────────────────────────────────
-# HOW TO SET UP (one-time):
-#
-# 1. Go to your Render dashboard → your backend service
-# 2. Click Settings → Deploy Hook → Copy the URL
-#
-# 3. Add this GitHub Secret (Settings → Secrets → Actions):
-#    RENDER_DEPLOY_HOOK_URL → the full deploy hook URL from Render
-#
-# Render auto-deploys from the hook URL (no credentials needed in the URL itself).
-# ─────────────────────────────────────────────────────────────────────────────
+      - name: Deploy skipped notice
+        if: steps.check-secrets.outputs.skip == 'true'
+        run: |
+          echo ""
+          echo "╔══════════════════════════════════════════════════════╗"
+          echo "║  DEPLOY SKIPPED — Secret not configured yet         ║"
+          echo "╠══════════════════════════════════════════════════════╣"
+          echo "║  Add this in: Settings → Secrets → Actions          ║"
+          echo "║                                                      ║"
+          echo "║  RENDER_DEPLOY_HOOK_URL                             ║"
+          echo "║  → Render Dashboard → Service → Settings            ║"
+          echo "║    → Deploy Hook → Generate & copy URL              ║"
+          echo "╚══════════════════════════════════════════════════════╝"
