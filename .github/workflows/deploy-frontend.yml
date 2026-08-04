@@ -1,0 +1,70 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Deploy Frontend → Vercel
+# Runs only when main branch is pushed (after merge)
+# Builds Vite and deploys to Vercel via CLI
+# ─────────────────────────────────────────────────────────────────────────────
+name: Deploy Frontend → Vercel
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Frontend/**'         # only trigger when frontend code changes
+      - '.github/workflows/deploy-frontend.yml'
+
+  # Allow manual trigger from GitHub UI
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Build & Deploy to Vercel
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: Frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: Frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build production bundle
+        run: npm run build
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
+
+      - name: Pull Vercel environment info
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy to Vercel (Production)
+        run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID:     ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# HOW TO SET UP (one-time):
+#
+# 1. Install Vercel CLI locally:  npm i -g vercel
+# 2. Inside /Frontend run:        vercel link
+#    → This creates .vercel/project.json with your org/project IDs
+#
+# 3. Add these GitHub Secrets (Settings → Secrets → Actions):
+#    VERCEL_TOKEN       → from https://vercel.com/account/tokens
+#    VERCEL_ORG_ID      → from .vercel/project.json  (orgId field)
+#    VERCEL_PROJECT_ID  → from .vercel/project.json  (projectId field)
+#    VITE_API_URL       → your backend URL e.g. https://prepiq-backend.onrender.com
+# ─────────────────────────────────────────────────────────────────────────────

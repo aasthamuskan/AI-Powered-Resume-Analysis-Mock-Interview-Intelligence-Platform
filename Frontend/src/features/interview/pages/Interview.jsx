@@ -8,89 +8,89 @@ import { useNavigate, useParams } from 'react-router'
 // ── Icons ──────────────────────────────────────────────────────────────────────
 const IconDashboard = () => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-        <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+        <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" />
+        <rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" />
     </svg>
 )
 const IconCode = () => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
+        <polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" />
     </svg>
 )
 const IconChat = () => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
     </svg>
 )
 const IconGaps = () => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
     </svg>
 )
 const IconMap = () => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <polygon points="3 11 22 2 13 21 11 13 3 11"/>
+        <polygon points="3 11 22 2 13 21 11 13 3 11" />
     </svg>
 )
 const IconSettings = () => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="3"/>
-        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        <circle cx="12" cy="12" r="3" />
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
     </svg>
 )
 const IconHelp = () => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="10"/>
-        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
-        <line x1="12" y1="17" x2="12.01" y2="17"/>
+        <circle cx="12" cy="12" r="10" />
+        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+        <line x1="12" y1="17" x2="12.01" y2="17" />
     </svg>
 )
 const IconLogout = () => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-        <polyline points="16 17 21 12 16 7"/>
-        <line x1="21" y1="12" x2="9" y2="12"/>
+        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+        <polyline points="16 17 21 12 16 7" />
+        <line x1="21" y1="12" x2="9" y2="12" />
     </svg>
 )
 const IconDownload = () => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-        <polyline points="7 10 12 15 17 10"/>
-        <line x1="12" y1="15" x2="12" y2="3"/>
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+        <polyline points="7 10 12 15 17 10" />
+        <line x1="12" y1="15" x2="12" y2="3" />
     </svg>
 )
 const IconVideo = () => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <polygon points="23 7 16 12 23 17 23 7"/>
-        <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+        <polygon points="23 7 16 12 23 17 23 7" />
+        <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
     </svg>
 )
 const IconStar = () => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
     </svg>
 )
 const IconZap = () => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
     </svg>
 )
 const IconBook = () => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
     </svg>
 )
 
 // ── Nav Items ──────────────────────────────────────────────────────────────────
 const NAV_ITEMS = [
-    { id: 'overview',   label: 'Dashboard',      icon: <IconDashboard /> },
-    { id: 'technical',  label: 'Deep Work',      icon: <IconCode /> },
-    { id: 'behavioral', label: 'AI Insights',    icon: <IconChat /> },
-    { id: 'gaps',       label: 'Library',        icon: <IconBook /> },
-    { id: 'roadmap',    label: 'Roadmap',        icon: <IconMap /> },
-    { id: 'mock',       label: 'Mock Interview', icon: <IconStar /> },
-    { id: 'face',       label: 'Face Interview', icon: <IconVideo /> },
+    { id: 'overview', label: 'Dashboard', icon: <IconDashboard /> },
+    { id: 'technical', label: 'Deep Work', icon: <IconCode /> },
+    { id: 'behavioral', label: 'AI Insights', icon: <IconChat /> },
+    { id: 'gaps', label: 'Library', icon: <IconBook /> },
+    { id: 'roadmap', label: 'Roadmap', icon: <IconMap /> },
+    { id: 'mock', label: 'Mock Interview', icon: <IconStar /> },
+    { id: 'face', label: 'Face Interview', icon: <IconVideo /> },
 ]
 
 const SUGGESTIONS = [
@@ -134,7 +134,7 @@ const QuestionCard = ({ item, index, type }) => {
                 <p className="q-card__question">{item.question}</p>
                 <span className={`q-card__chevron ${open ? 'q-card__chevron--open' : ''}`}>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
-                        <polyline points="6 9 12 15 18 9"/>
+                        <polyline points="6 9 12 15 18 9" />
                     </svg>
                 </span>
             </div>
@@ -166,7 +166,7 @@ const RoadmapDay = ({ day, index }) => {
         <div className="roadmap-day">
             <div className={`roadmap-day__node ${nodeClass}`}>
                 {index === 0
-                    ? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14"><polyline points="20 6 9 17 4 12"/></svg>
+                    ? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14"><polyline points="20 6 9 17 4 12" /></svg>
                     : index + 1
                 }
             </div>
@@ -205,32 +205,31 @@ const RoadmapDay = ({ day, index }) => {
 const MockInterviewPanel = ({ report, interviewId, evaluateMockAnswer }) => {
     const allQ = report
         ? [
-            ...(report.technicalQuestions  || []).map(q => ({ ...q, type: 'technical' })),
+            ...(report.technicalQuestions || []).map(q => ({ ...q, type: 'technical' })),
             ...(report.behavioralQuestions || []).map(q => ({ ...q, type: 'behavioral' })),
-          ]
+        ]
         : []
 
-    const [qIdx,        setQIdx]        = useState(0)
-    const [answer,      setAnswer]      = useState('')
-    const [evaluation,  setEvaluation]  = useState(null)
-    const [evaluating,  setEvaluating]  = useState(false)
-    const [results,     setResults]     = useState([])
-    const [stage,       setStage]       = useState('quiz')   // 'quiz' | 'complete'
+    const [qIdx, setQIdx] = useState(0)
+    const [answer, setAnswer] = useState('')
+    const [evaluation, setEvaluation] = useState(null)
+    const [evaluating, setEvaluating] = useState(false)
+    const [results, setResults] = useState([])
+    const [stage, setStage] = useState('quiz')   // 'quiz' | 'complete'
     const [isListening, setIsListening] = useState(false)
+    
     const recognitionRef = useRef(null)
-
     const currentQ = allQ[qIdx]
-
-    const stoppedRef  = useRef(false)
+    const stoppedRef = useRef(false)
     const finalTextRef = useRef('')
+    const initRecRef = useRef(null)
 
-    const createRecognition = useCallback(() => {
+    // Defined as a ref-function so onend can always call the latest version
+    initRecRef.current = () => {
         const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition
         if (!SpeechRec || stoppedRef.current) return
 
-        if (recognitionRef.current) {
-            try { recognitionRef.current.abort() } catch {}
-        }
+        if (recognitionRef.current) { try { recognitionRef.current.abort() } catch {} }
 
         const r = new SpeechRec()
         r.continuous      = true
@@ -256,26 +255,21 @@ const MockInterviewPanel = ({ report, interviewId, evaluateMockAnswer }) => {
         // Chrome auto-stops after silence — restart unless intentionally stopped
         r.onend = () => {
             if (!stoppedRef.current) {
-                setTimeout(() => { if (!stoppedRef.current) createRecognition() }, 300)
+                setTimeout(() => { if (!stoppedRef.current) initRecRef.current?.() }, 300)
             } else {
                 setIsListening(false)
             }
         }
 
         recognitionRef.current = r
-        try {
-            r.start()
-            setIsListening(true)
-        } catch (err) {
-            console.warn('SpeechRec start error:', err)
-        }
-    }, [])
+        try { r.start(); setIsListening(true) } catch (err) { console.warn('SpeechRec start:', err) }
+    }
 
     const startVoice = useCallback(() => {
         stoppedRef.current   = false
-        finalTextRef.current = answer  // preserve existing typed answer
-        createRecognition()
-    }, [answer, createRecognition])
+        finalTextRef.current = answer
+        initRecRef.current?.()
+    }, [answer])
 
     const stopVoice = useCallback(() => {
         stoppedRef.current = true

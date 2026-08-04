@@ -4,6 +4,84 @@ import { useInterview } from '../hooks/useInterview.js'
 import { useNavigate } from 'react-router'
 import { useAuth } from '../../auth/hooks/useAuth'
 
+// ── Smart JD validator ────────────────────────────────────────────────────────
+const KEYBOARD_ROWS = ['qwertyuiop', 'asdfghjkl', 'zxcvbnm', 'qwerty', 'asdf', 'zxcv']
+const JD_KEYWORDS = [
+    // roles
+    'developer','engineer','designer','manager','analyst','architect','consultant',
+    'coordinator','director','specialist','lead','senior','junior','intern',
+    // skills
+    'experience','skills','knowledge','proficiency','expertise','familiar',
+    // responsibilities
+    'responsible','responsibilities','duties','role','position','work','collaborate',
+    'develop','design','build','manage','support','maintain','implement','create',
+    'ensure','deliver','analyze','communicate','report','coordinate','lead',
+    // requirements
+    'requirements','qualifications','degree','years','minimum','preferred',
+    'required','strong','excellent','ability','team','communication','problem',
+    // company/context
+    'company','organization','startup','team','culture','environment','opportunity',
+    'growth','salary','benefits','remote','hybrid','office','full-time','part-time',
+    'looking','seeking','join','hire','candidate','applicant',
+]
+
+function validateJD(text) {
+    const raw = text.trim()
+
+    // 1. Empty
+    if (!raw) return { valid: false, reason: 'Job description is required.' }
+
+    // 2. Too short
+    if (raw.length < 80) return { valid: false, reason: `Too short (${raw.length}/80 chars). Please paste the full job description.` }
+
+    const lower = raw.toLowerCase()
+
+    // 3. No spaces → pure keyboard smash with no words
+    const spaceCount = (raw.match(/\s/g) || []).length
+    if (spaceCount < 3) return { valid: false, reason: 'No sentence structure detected. Please paste an actual job description.' }
+
+    // 4. Keyboard row smashing (e.g. "qwertyqwerty", "asdfghjkl")
+    for (const row of KEYBOARD_ROWS) {
+        // Check for 5+ consecutive chars from a keyboard row
+        for (let i = 0; i <= row.length - 5; i++) {
+            if (lower.replace(/\s/g, '').includes(row.slice(i, i + 5))) {
+                return { valid: false, reason: 'Keyboard smashing detected. Please paste a real job description.' }
+            }
+        }
+    }
+
+    // 5. Extract real words (letters only, 2+ chars)
+    const words = lower.split(/\s+/).filter(w => /^[a-z]{2,}$/.test(w))
+    if (words.length < 12) return { valid: false, reason: `Too few meaningful words (${words.length} found). A real job description needs at least 12 words.` }
+
+    // 6. Repeated token flooding (e.g. "hello hello hello hello")
+    const freq = {}
+    for (const w of words) freq[w] = (freq[w] || 0) + 1
+    const maxFreq = Math.max(...Object.values(freq))
+    if (maxFreq / words.length > 0.25) {
+        const topWord = Object.entries(freq).sort((a,b) => b[1]-a[1])[0][0]
+        return { valid: false, reason: `Word "${topWord}" repeated ${maxFreq} times. Please paste a real job description without repetition.` }
+    }
+
+    // 7. Vocabulary diversity (unique/total)
+    const uniqueWords = Object.keys(freq).length
+    if (uniqueWords / words.length < 0.45) {
+        return { valid: false, reason: 'Very low vocabulary variety detected. Please paste an actual job description.' }
+    }
+
+    // 8. Gibberish detection — avg word length > 10 means random long strings
+    const avgLen = words.reduce((s, w) => s + w.length, 0) / words.length
+    if (avgLen > 10) return { valid: false, reason: 'Unusual word patterns detected. Please paste a real job description.' }
+
+    // 9. Relevance — at least 3 JD-domain words must be present
+    const hits = JD_KEYWORDS.filter(kw => lower.includes(kw)).length
+    if (hits < 3) {
+        return { valid: false, reason: 'This doesn\'t appear to be a job description. Please paste the actual JD from a job posting (must include role, skills, or responsibilities).' }
+    }
+
+    return { valid: true, reason: null }
+}
+
 const FEATURES = [
     {
         icon: (
@@ -98,25 +176,22 @@ const Home = () => {
     const handleJobDescChange = (e) => {
         setJobDescription(e.target.value)
         setCharCount(e.target.value.length)
-        const words = e.target.value.trim().split(/\s+/).filter(w => w.length > 1)
-        if (e.target.value.trim().length >= 80 && words.length >= 8) {
+        // Clear error only when the text is actually valid
+        const check = validateJD(e.target.value)
+        if (check.valid) {
             setValidationErrors(prev => ({ ...prev, jd: null }))
         }
     }
+
 
     const handleGenerateReport = async () => {
         const resumeFile = resumeInputRef.current.files[0]
         const errors = {}
 
-        // Validate JD — must be meaningful: at least 80 chars AND 8+ real words
-        const jdTrimmed = jobDescription.trim()
-        const jdWords   = jdTrimmed.split(/\s+/).filter(w => w.length > 1)
-        if (!jdTrimmed) {
-            errors.jd = 'Job description is required.'
-        } else if (jdTrimmed.length < 80) {
-            errors.jd = `Job description is too short (${jdTrimmed.length}/80 chars). Please paste the actual job description.`
-        } else if (jdWords.length < 8) {
-            errors.jd = `That doesn't look like a real job description (only ${jdWords.length} words found). Please paste the actual JD text.`
+        // Comprehensive JD validation
+        const jdCheck = validateJD(jobDescription)
+        if (!jdCheck.valid) {
+            errors.jd = jdCheck.reason
         }
 
         // Validate that at least resume or self-description is provided

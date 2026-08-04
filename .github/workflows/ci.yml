@@ -1,0 +1,82 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# CI — Continuous Integration
+# Runs on every push and pull request to main/dev branch
+# Checks: Frontend build + lint, Backend install + syntax check
+# ─────────────────────────────────────────────────────────────────────────────
+name: CI — Build & Lint
+
+on:
+  push:
+    branches: [main, dev, develop]
+  pull_request:
+    branches: [main, dev, develop]
+
+jobs:
+  # ── Frontend ────────────────────────────────────────────────────────────────
+  frontend:
+    name: Frontend — Install, Lint & Build
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: Frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: Frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+        continue-on-error: true   # lint warnings won't block build
+
+      - name: Build production bundle
+        run: npm run build
+        env:
+          # Inject any public env vars needed at build time
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: Frontend/dist
+          retention-days: 7
+
+  # ── Backend ─────────────────────────────────────────────────────────────────
+  backend:
+    name: Backend — Install & Syntax Check
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: Backend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: Backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Syntax check — server entry point
+        run: node --check server.js
+
+      - name: Syntax check — all source files
+        run: find src -name "*.js" -exec node --check {} \;
