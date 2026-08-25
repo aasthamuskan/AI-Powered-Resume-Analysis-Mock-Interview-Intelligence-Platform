@@ -159,18 +159,35 @@ const Home = () => {
     const [validationErrors, setValidationErrors] = useState({})
 
     const handleFileChange = (e) => {
-        const file = e.target.files[0]
+        const file = e.target.files?.[0]
         if (file) {
             setSelectedFile(file)
-            setValidationErrors(prev => ({ ...prev, resume: null }))
+            setValidationErrors(prev => ({ ...prev, resume: null, profile: null }))
         }
+    }
+
+    const handleDrop = (e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        const file = e.dataTransfer?.files?.[0]
+        if (file) {
+            setSelectedFile(file)
+            setValidationErrors(prev => ({ ...prev, resume: null, profile: null }))
+        }
+    }
+
+    const handleDragOver = (e) => {
+        e.preventDefault()
+        e.stopPropagation()
     }
 
     const handleRemoveFile = (e) => {
         e.preventDefault()
         e.stopPropagation()
         setSelectedFile(null)
-        resumeInputRef.current.value = ''
+        if (resumeInputRef.current) {
+            resumeInputRef.current.value = ''
+        }
     }
 
     const handleJobDescChange = (e) => {
@@ -185,7 +202,7 @@ const Home = () => {
 
 
     const handleGenerateReport = async () => {
-        const resumeFile = resumeInputRef.current.files[0]
+        const resumeFile = selectedFile || resumeInputRef.current?.files?.[0]
         const errors = {}
 
         // Comprehensive JD validation
@@ -210,6 +227,7 @@ const Home = () => {
         const interviewReport = await generateReport({ jobDescription, selfDescription, resumeFile })
         if (interviewReport?._id) navigate(`/interview/${interviewReport._id}`)
     }
+
 
     const handleLogoutClick = async () => {
         await handleLogout()
@@ -390,7 +408,7 @@ const Home = () => {
                                         <button className="dropzone__remove" onClick={handleRemoveFile}>✕ Remove</button>
                                     </div>
                                 ) : (
-                                    <label className="dropzone" htmlFor="resume">
+                                    <label className="dropzone" htmlFor="resume" onDrop={handleDrop} onDragOver={handleDragOver}>
                                         <span className="dropzone__icon dropzone__icon--cyan">
                                             <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
                                         </span>

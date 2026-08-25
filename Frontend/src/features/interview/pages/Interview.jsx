@@ -219,63 +219,118 @@ const MockInterviewPanel = ({ report, interviewId, evaluateMockAnswer }) => {
     const [isListening, setIsListening] = useState(false)
     
     const recognitionRef = useRef(null)
+    const mediaStreamRef = useRef(null)
     const currentQ = allQ[qIdx]
-    const stoppedRef = useRef(false)
-    const finalTextRef = useRef('')
-    const initRecRef = useRef(null)
+    const stoppedRef = useRef(true)
+    const baseTextRef = useRef('')
+    const sessionFinalRef = useRef('')
+    const startFn = useRef(null)
 
-    // Defined as a ref-function so onend can always call the latest version
-    initRecRef.current = () => {
-        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition
-        if (!SpeechRec || stoppedRef.current) return
+    // Assign to ref every render — so onend always calls latest version
+    startFn.current = () => {
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+        if (!SR) {
+            alert('Your browser does not support Speech Recognition. Please use Google Chrome.')
+            return
+        }
+        if (stoppedRef.current) return
 
-        if (recognitionRef.current) { try { recognitionRef.current.abort() } catch {} }
+        if (recognitionRef.current) {
+            try { recognitionRef.current.abort() } catch (_) {}
+            recognitionRef.current = null
+        }
 
-        const r = new SpeechRec()
-        r.continuous      = true
-        r.interimResults  = true
-        r.lang            = 'en-US'
-        r.maxAlternatives = 1
+        const rec = new SR()
+        rec.continuous      = true
+        rec.interimResults  = true
+        rec.lang            = navigator.language || 'en-US'
+        rec.maxAlternatives = 1
 
-        r.onresult = (e) => {
-            let interim = ''
-            for (let i = e.resultIndex; i < e.results.length; i++) {
-                if (e.results[i].isFinal) finalTextRef.current += e.results[i][0].transcript + ' '
-                else interim += e.results[i][0].transcript
+        rec.onstart = () => {
+            setIsListening(true)
+        }
+
+        rec.onresult = (e) => {
+            let sessionFinal = ''
+            let sessionInterim = ''
+
+            for (let i = 0; i < e.results.length; i++) {
+                const res = e.results[i]
+                if (res.isFinal) {
+                    sessionFinal += res[0].transcript + ' '
+                } else {
+                    sessionInterim += res[0].transcript
+                }
             }
-            setAnswer(finalTextRef.current + interim)
+
+            sessionFinalRef.current = sessionFinal
+            const combined = (baseTextRef.current + ' ' + sessionFinal + sessionInterim).replace(/\s+/g, ' ').trim()
+            setAnswer(combined)
         }
 
-        r.onerror = (e) => {
-            // no-speech / aborted are expected — ignore
-            if (e.error === 'no-speech' || e.error === 'aborted') return
+        rec.onerror = (e) => {
             console.warn('SpeechRec error:', e.error)
+            if (e.error === 'no-speech' || e.error === 'aborted') return
+            if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+                alert('Microphone access denied. Please allow microphone permissions in browser settings.')
+                stoppedRef.current = true
+                setIsListening(false)
+                return
+            }
         }
 
-        // Chrome auto-stops after silence — restart unless intentionally stopped
-        r.onend = () => {
+        rec.onend = () => {
+            recognitionRef.current = null
+            baseTextRef.current = (baseTextRef.current + ' ' + sessionFinalRef.current).replace(/\s+/g, ' ').trim()
+            sessionFinalRef.current = ''
+
             if (!stoppedRef.current) {
-                setTimeout(() => { if (!stoppedRef.current) initRecRef.current?.() }, 300)
+                setTimeout(() => { if (!stoppedRef.current) startFn.current?.() }, 200)
             } else {
                 setIsListening(false)
             }
         }
 
-        recognitionRef.current = r
-        try { r.start(); setIsListening(true) } catch (err) { console.warn('SpeechRec start:', err) }
+        recognitionRef.current = rec
+        try {
+            rec.start()
+        } catch (err) {
+            if (err.name === 'InvalidStateError') {
+                setTimeout(() => { if (!stoppedRef.current) startFn.current?.() }, 400)
+            } else {
+                console.error('SpeechRec start failed:', err)
+            }
+        }
     }
 
-    const startVoice = useCallback(() => {
-        stoppedRef.current   = false
-        finalTextRef.current = answer
-        initRecRef.current?.()
+    const startVoice = useCallback(async () => {
+        stoppedRef.current = false
+        baseTextRef.current = answer
+        sessionFinalRef.current = ''
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+            mediaStreamRef.current = stream
+        } catch (err) {
+            console.error('Mic permission error:', err)
+            alert('Microphone access denied or not available. Please check browser settings.')
+            stoppedRef.current = true
+            setIsListening(false)
+            return
+        }
+
+        startFn.current?.()
     }, [answer])
 
     const stopVoice = useCallback(() => {
         stoppedRef.current = true
         if (recognitionRef.current) {
-            try { recognitionRef.current.abort() } catch {}
+            try { recognitionRef.current.abort() } catch (_) {}
             recognitionRef.current = null
+        }
+        if (mediaStreamRef.current) {
+            try { mediaStreamRef.current.getTracks().forEach(t => t.stop()) } catch (_) {}
+            mediaStreamRef.current = null
         }
         setIsListening(false)
     }, [])

@@ -2,9 +2,13 @@ const Groq = require("groq-sdk")
 const puppeteer = require("puppeteer")
 const { z } = require("zod")
 
-const groq = new Groq({
-    apiKey: process.env.GROQ_API_KEY
-})
+function getGroqClient() {
+    const apiKey = process.env.GROQ_API_KEY
+    if (!apiKey) {
+        throw new Error("GROQ_API_KEY is missing. Please configure GROQ_API_KEY in your .env file.")
+    }
+    return new Groq({ apiKey })
+}
 
 const MODEL = "llama-3.3-70b-versatile"
 
@@ -41,16 +45,116 @@ const ResumePdfSchema = z.object({
     html: z.string().min(1),
 })
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function cleanJsonContent(rawText) {
+    if (!rawText) return "{}"
+    let text = rawText.trim()
+    text = text.replace(/^```json\s*/i, "").replace(/^```\s*/, "").replace(/\s*```$/, "").trim()
+    return text
+}
+
+function normalizeInterviewReport(raw, jobDescription = "") {
+    if (!raw || typeof raw !== "object") raw = {}
+
+    let title = typeof raw.title === "string" && raw.title.trim() ? raw.title.trim() : ""
+    if (!title) {
+        const firstLine = (jobDescription || "").trim().split("\n")[0] || ""
+        title = firstLine.slice(0, 60) || "Target Position"
+    }
+
+    let matchScore = 75
+    if (typeof raw.matchScore === "number") {
+        matchScore = Math.max(0, Math.min(100, Math.round(raw.matchScore)))
+    } else if (typeof raw.matchScore === "string") {
+        const parsed = parseInt(raw.matchScore.replace(/[^0-9]/g, ""), 10)
+        if (!isNaN(parsed)) matchScore = Math.max(0, Math.min(100, parsed))
+    }
+
+    const technicalQuestions = Array.isArray(raw.technicalQuestions)
+        ? raw.technicalQuestions.map(q => ({
+            question: String(q?.question || "What relevant technical experience do you bring to this role?"),
+            intention: String(q?.intention || "To evaluate core technical proficiency."),
+            answer: String(q?.answer || "Highlight key projects, architecture, and measurable outcomes.")
+        }))
+        : []
+
+    if (technicalQuestions.length === 0) {
+        technicalQuestions.push({
+            question: "Can you walk through a complex technical solution you engineered?",
+            intention: "Assessing architectural decisions and technical depth.",
+            answer: "Describe the situation, technical choices, trade-offs, and final impact."
+        })
+    }
+
+    const behavioralQuestions = Array.isArray(raw.behavioralQuestions)
+        ? raw.behavioralQuestions.map(q => ({
+            question: String(q?.question || "Tell me about a time you handled competing priorities."),
+            intention: String(q?.intention || "Evaluating resilience and priority management."),
+            answer: String(q?.answer || "Discuss prioritization criteria, stakeholder alignment, and delivery.")
+        }))
+        : []
+
+    if (behavioralQuestions.length === 0) {
+        behavioralQuestions.push({
+            question: "How do you navigate technical disagreements within a team?",
+            intention: "Assessing teamwork and communication skills.",
+            answer: "Focus on data-driven discussions, active listening, and building consensus."
+        })
+    }
+
+    const skillGaps = Array.isArray(raw.skillGaps)
+        ? raw.skillGaps.map(sg => {
+            let sev = String(sg?.severity || "medium").toLowerCase().trim()
+            if (!["low", "medium", "high"].includes(sev)) sev = "medium"
+            return {
+                skill: String(sg?.skill || "Role Alignment"),
+                severity: sev
+            }
+        })
+        : []
+
+    const preparationPlan = Array.isArray(raw.preparationPlan)
+        ? raw.preparationPlan.map((p, idx) => {
+            let day = parseInt(p?.day, 10)
+            if (isNaN(day) || day < 1) day = idx + 1
+            const focus = String(p?.focus || `Day ${day} Preparation Focus`)
+            const tasks = Array.isArray(p?.tasks)
+                ? p.tasks.map(t => String(t))
+                : [String(p?.tasks || "Review key technical topics and practice responses")]
+            return { day, focus, tasks }
+        })
+        : []
+
+    if (preparationPlan.length === 0) {
+        preparationPlan.push({
+            day: 1,
+            focus: "Initial Requirement Review & Setup",
+            tasks: ["Analyze target job requirements", "Prepare key STAR story points", "Research target company domain"]
+        })
+    }
+
+    return {
+        title,
+        matchScore,
+        technicalQuestions,
+        behavioralQuestions,
+        skillGaps,
+        preparationPlan
+    }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 
 async function generateInterviewReport({ resume, selfDescription, jobDescription }) {
 
+    const truncatedResume = (resume || "").slice(0, 7000)
     const prompt = `You are an expert career coach and interview preparation specialist.
 
 Generate a detailed interview report for a candidate based on the following information:
 
-Resume: ${resume || "Not provided"}
+Resume: ${truncatedResume || "Not provided"}
 Self Description: ${selfDescription || "Not provided"}
 Job Description: ${jobDescription}
 
@@ -90,6 +194,7 @@ Return a JSON object with EXACTLY this structure (no extra fields):
 Generate at least 5 technical questions, 4 behavioral questions, identify key skill gaps, and create a 7-day preparation plan.`
 
     try {
+        const groq = getGroqClient()
         const response = await groq.chat.completions.create({
             model: MODEL,
             messages: [
@@ -106,22 +211,20 @@ Generate at least 5 technical questions, 4 behavioral questions, identify key sk
             temperature: 0.7,
         })
 
-        const raw = JSON.parse(response.choices[0].message.content)
+        const cleanedStr = cleanJsonContent(response.choices[0]?.message?.content)
+        const raw = JSON.parse(cleanedStr)
+        const normalized = normalizeInterviewReport(raw, jobDescription)
 
-        // Validate + parse with Zod — throws if AI returned wrong structure/types
-        const validated = InterviewReportSchema.parse(raw)
-
+        // Validate normalized report
+        const validated = InterviewReportSchema.parse(normalized)
         return validated
 
     } catch (err) {
-        if (err instanceof z.ZodError) {
-            console.error("Interview report validation failed:", err.errors)
-            throw new Error("AI returned an invalid report structure. Please try again.")
-        }
-        console.error("generateInterviewReport error:", err.message)
-        throw new Error("Failed to generate interview report. Please try again.")
+        console.error("generateInterviewReport error details:", err)
+        throw new Error(err.message || "Failed to generate interview report. Please try again.")
     }
 }
+
 
 
 async function generatePdfFromHtml(htmlContent) {
@@ -162,7 +265,7 @@ async function generateResumePdf({ resume, selfDescription, jobDescription }) {
 
 Generate an ATS-friendly, professional resume in HTML format for a candidate with the following details:
 
-Resume/Experience: ${resume || "Not provided"}
+Resume/Experience: ${(resume || "Not provided").slice(0, 7000)}
 Self Description: ${selfDescription || "Not provided"}
 Job Description: ${jobDescription}
 
@@ -183,6 +286,7 @@ Requirements for the HTML resume:
 - Sections: Contact Info, Professional Summary, Skills, Experience, Education, Projects (if any)`
 
     try {
+        const groq = getGroqClient()
         const response = await groq.chat.completions.create({
             model: MODEL,
             messages: [
@@ -199,7 +303,8 @@ Requirements for the HTML resume:
             temperature: 0.6,
         })
 
-        const raw = JSON.parse(response.choices[0].message.content)
+        const cleanedStr = cleanJsonContent(response.choices[0]?.message?.content)
+        const raw = JSON.parse(cleanedStr)
 
         // Validate with Zod — ensures html field exists and is non-empty
         const { html } = ResumePdfSchema.parse(raw)
@@ -209,12 +314,8 @@ Requirements for the HTML resume:
         return pdfBuffer
 
     } catch (err) {
-        if (err instanceof z.ZodError) {
-            console.error("Resume PDF validation failed:", err.errors)
-            throw new Error("AI returned an invalid resume structure. Please try again.")
-        }
-        console.error("generateResumePdf error:", err.message)
-        throw new Error("Failed to generate resume PDF. Please try again.")
+        console.error("generateResumePdf error details:", err)
+        throw new Error(err.message || "Failed to generate resume PDF.")
     }
 }
 
@@ -237,7 +338,7 @@ async function handlePlanChat({ resume, selfDescription, jobDescription, current
     const prompt = `You are PrepIQ, an expert AI career coach. You are discussing a personalized interview preparation plan with a candidate.
 
 Context:
-- Candidate's Resume: ${resume || "Not provided"}
+- Candidate's Resume: ${(resume || "Not provided").slice(0, 5000)}
 - Candidate's Self Description: ${selfDescription || "Not provided"}
 - Target Job Description: ${jobDescription}
 
@@ -280,6 +381,7 @@ Return a JSON object with EXACTLY this structure (do not include any markdown fo
 }`;
 
     try {
+        const groq = getGroqClient()
         const response = await groq.chat.completions.create({
             model: MODEL,
             messages: [
@@ -296,16 +398,13 @@ Return a JSON object with EXACTLY this structure (do not include any markdown fo
             temperature: 0.7,
         });
 
-        const raw = JSON.parse(response.choices[0].message.content);
+        const cleanedStr = cleanJsonContent(response.choices[0]?.message?.content)
+        const raw = JSON.parse(cleanedStr);
         const validated = ChatResponseSchema.parse(raw);
         return validated;
     } catch (err) {
-        if (err instanceof z.ZodError) {
-            console.error("Plan chat validation failed:", err.errors);
-            throw new Error("AI returned an invalid chat response structure.");
-        }
-        console.error("handlePlanChat error:", err.message);
-        throw new Error("Failed to process chat message.");
+        console.error("handlePlanChat error details:", err);
+        throw new Error(err.message || "Failed to process chat message.");
     }
 }
 
@@ -354,6 +453,7 @@ Example format:
   "verdict": "good"
 }`
 
+        const groq = getGroqClient()
         const completion = await groq.chat.completions.create({
             model: MODEL,
             messages: [{ role: "user", content: prompt }],
@@ -361,17 +461,14 @@ Example format:
             temperature: 0.4,
         })
 
-        const raw = JSON.parse(completion.choices[0].message.content)
+        const cleanedStr = cleanJsonContent(completion.choices[0]?.message?.content)
+        const raw = JSON.parse(cleanedStr)
         const validated = MockEvaluationSchema.parse(raw)
         return validated
 
     } catch (err) {
-        if (err instanceof z.ZodError) {
-            console.error("Mock eval validation failed:", err.errors)
-            throw new Error("AI returned an invalid evaluation structure.")
-        }
-        console.error("evaluateMockAnswer error:", err.message)
-        throw new Error("Failed to evaluate mock answer.")
+        console.error("evaluateMockAnswer error details:", err)
+        throw new Error(err.message || "Failed to evaluate mock answer.")
     }
 }
 
@@ -471,6 +568,7 @@ Return a JSON object with EXACTLY these fields:
 Be direct, specific, and reference the actual behavioral data numbers. Return ONLY valid JSON.`
 
     try {
+        const groq = getGroqClient()
         const completion = await groq.chat.completions.create({
             model: MODEL,
             messages: [
@@ -484,17 +582,14 @@ Be direct, specific, and reference the actual behavioral data numbers. Return ON
             temperature: 0.45,
         })
 
-        const raw = JSON.parse(completion.choices[0].message.content)
+        const cleanedStr = cleanJsonContent(completion.choices[0]?.message?.content)
+        const raw = JSON.parse(cleanedStr)
         const validated = FaceEvaluationSchema.parse(raw)
         return validated
 
     } catch (err) {
-        if (err instanceof z.ZodError) {
-            console.error("Face eval validation failed:", err.errors)
-            throw new Error("AI returned an invalid face evaluation structure.")
-        }
-        console.error("evaluateFaceInterview error:", err.message)
-        throw new Error("Failed to evaluate face interview answer.")
+        console.error("evaluateFaceInterview error details:", err)
+        throw new Error(err.message || "Failed to evaluate face interview answer.")
     }
 }
 
