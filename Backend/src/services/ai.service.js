@@ -10,7 +10,30 @@ function getGroqClient() {
     return new Groq({ apiKey })
 }
 
-const MODEL = "llama-3.3-70b-versatile"
+const MODELS = ["openai/gpt-oss-120b", "qwen/qwen3.6-27b", "groq/compound", "llama-3.3-70b-versatile"]
+
+async function createGroqCompletion(params) {
+    const groq = getGroqClient()
+    let lastErr = null
+
+    for (const model of MODELS) {
+        try {
+            return await groq.chat.completions.create({
+                ...params,
+                model
+            })
+        } catch (err) {
+            console.warn(`Groq model ${model} failed: ${err.message}. Trying next model...`)
+            lastErr = err
+            const isModelError = err?.error?.code === 'model_not_found' || err?.error?.code === 'model_decommissioned' || err?.status === 404
+            if (!isModelError) {
+                throw err
+            }
+        }
+    }
+    throw lastErr || new Error("All Groq AI models failed.")
+}
+
 
 
 // ─── Zod Schemas ──────────────────────────────────────────────────────────────
@@ -194,9 +217,7 @@ Return a JSON object with EXACTLY this structure (no extra fields):
 Generate at least 5 technical questions, 4 behavioral questions, identify key skill gaps, and create a 7-day preparation plan.`
 
     try {
-        const groq = getGroqClient()
-        const response = await groq.chat.completions.create({
-            model: MODEL,
+        const response = await createGroqCompletion({
             messages: [
                 {
                     role: "system",
@@ -228,34 +249,50 @@ Generate at least 5 technical questions, 4 behavioral questions, identify key sk
 
 
 async function generatePdfFromHtml(htmlContent) {
+    console.log("Launching Puppeteer browser...")
+
+    const isWindows = process.platform === "win32"
+
     const browser = await puppeteer.launch({
+        headless: "new",
         args: [
             "--no-sandbox",
             "--disable-setuid-sandbox",
-            "--disable-dev-shm-usage",   // needed on Render (limited /dev/shm)
+            "--disable-dev-shm-usage",
             "--disable-gpu",
             "--no-first-run",
             "--no-zygote",
-            "--single-process"           // required for some cloud environments
+            // NOTE: --single-process is omitted — it crashes on Windows
         ],
-        headless: true
-    })
-    const page = await browser.newPage()
-    await page.setContent(htmlContent, { waitUntil: "networkidle0" })
-
-    const pdfBuffer = await page.pdf({
-        format: "A4",
-        margin: {
-            top: "20mm",
-            bottom: "20mm",
-            left: "15mm",
-            right: "15mm"
-        }
+        protocolTimeout: 60000,
+        timeout: 30000,
     })
 
-    await browser.close()
+    console.log("Browser launched. Opening page...")
 
-    return pdfBuffer
+    try {
+        const page = await browser.newPage()
+        await page.setContent(htmlContent, { waitUntil: "networkidle0", timeout: 30000 })
+
+        console.log("Page content set. Generating PDF...")
+
+        const pdfBuffer = await page.pdf({
+            format: "A4",
+            printBackground: true,
+            margin: {
+                top: "20mm",
+                bottom: "20mm",
+                left: "15mm",
+                right: "15mm"
+            }
+        })
+
+        console.log(`PDF generated successfully. Size: ${pdfBuffer.length} bytes`)
+        return pdfBuffer
+    } finally {
+        await browser.close()
+        console.log("Browser closed.")
+    }
 }
 
 
@@ -286,9 +323,7 @@ Requirements for the HTML resume:
 - Sections: Contact Info, Professional Summary, Skills, Experience, Education, Projects (if any)`
 
     try {
-        const groq = getGroqClient()
-        const response = await groq.chat.completions.create({
-            model: MODEL,
+        const response = await createGroqCompletion({
             messages: [
                 {
                     role: "system",
@@ -381,9 +416,7 @@ Return a JSON object with EXACTLY this structure (do not include any markdown fo
 }`;
 
     try {
-        const groq = getGroqClient()
-        const response = await groq.chat.completions.create({
-            model: MODEL,
+        const response = await createGroqCompletion({
             messages: [
                 {
                     role: "system",
@@ -453,9 +486,7 @@ Example format:
   "verdict": "good"
 }`
 
-        const groq = getGroqClient()
-        const completion = await groq.chat.completions.create({
-            model: MODEL,
+        const completion = await createGroqCompletion({
             messages: [{ role: "user", content: prompt }],
             response_format: { type: "json_object" },
             temperature: 0.4,
@@ -568,9 +599,7 @@ Return a JSON object with EXACTLY these fields:
 Be direct, specific, and reference the actual behavioral data numbers. Return ONLY valid JSON.`
 
     try {
-        const groq = getGroqClient()
-        const completion = await groq.chat.completions.create({
-            model: MODEL,
+        const completion = await createGroqCompletion({
             messages: [
                 {
                     role: "system",

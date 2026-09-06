@@ -170,9 +170,40 @@ async function getMeController(req, res) {
 
 
 
+/**
+ * @name googleAuthCallbackController
+ * @description handles redirect after google oauth success
+ */
+async function googleAuthCallbackController(req, res) {
+    try {
+        const user = req.user
+        if (!user) {
+            const clientUrl = process.env.CLIENT_URL || "http://localhost:5173"
+            return res.redirect(`${clientUrl}/login?error=auth_failed`)
+        }
+
+        const token = jwt.sign(
+            { id: user._id, username: user.username },
+            process.env.JWT_SECRET,
+            { expiresIn: "1d" }
+        )
+
+        res.cookie("token", token, COOKIE_OPTIONS)
+
+        // Redirect to frontend app
+        const clientUrl = process.env.CLIENT_URL || (process.env.NODE_ENV === "production" ? "https://ai-powered-resume-analysis-mock-int.vercel.app" : "http://localhost:5173")
+        res.redirect(`${clientUrl}/`)
+    } catch (err) {
+        console.error("Google auth callback error:", err)
+        const clientUrl = process.env.CLIENT_URL || "http://localhost:5173"
+        res.redirect(`${clientUrl}/login?error=server_error`)
+    }
+}
+
 module.exports = {
     registerUserController,
     loginUserController,
     logoutUserController,
-    getMeController
+    getMeController,
+    googleAuthCallbackController
 }

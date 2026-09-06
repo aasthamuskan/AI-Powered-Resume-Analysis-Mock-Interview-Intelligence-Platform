@@ -16,9 +16,18 @@ const userSchema = new mongoose.Schema({
 
     password: {
         type: String,
-        required: true
+        required: false
+    },
+
+    googleId: {
+        type: String,
+        sparse: true
+    },
+
+    avatar: {
+        type: String
     }
-})
+}, { timestamps: true })
 
 const userModel = mongoose.model("users", userSchema)
 

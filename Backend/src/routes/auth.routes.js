@@ -2,7 +2,30 @@ const { Router } = require('express')
 const authController = require("../controllers/auth.controller")
 const authMiddleware = require("../middlewares/auth.middleware")
 
+const passport = require("../config/passport")
+
 const authRouter = Router()
+
+/**
+ * @route GET /api/auth/google
+ * @description Redirect user to Google for OAuth authentication
+ * @access Public
+ */
+authRouter.get(
+    "/google",
+    passport.authenticate("google", { scope: ["profile", "email"], session: false })
+)
+
+/**
+ * @route GET /api/auth/google/callback
+ * @description Google OAuth callback
+ * @access Public
+ */
+authRouter.get(
+    "/google/callback",
+    passport.authenticate("google", { session: false, failureRedirect: "/login?error=google_failed" }),
+    authController.googleAuthCallbackController
+)
 
 /**
  * @route POST /api/auth/register

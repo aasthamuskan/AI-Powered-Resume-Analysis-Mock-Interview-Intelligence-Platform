@@ -70,28 +70,39 @@ export const useInterview = () => {
         setLoading(true)
         setError(null)
         try {
+            // axios already returns a Blob when responseType: "blob" — do NOT wrap it again
             const blob = await generateResumePdf({ interviewReportId })
 
-            // Create download link
-            const url = window.URL.createObjectURL(new Blob([blob], { type: "application/pdf" }))
+            const url = window.URL.createObjectURL(blob)
             const link = document.createElement("a")
             link.href = url
-            link.setAttribute("download", `resume_${interviewReportId}.pdf`)
+            link.setAttribute("download", `ats_resume_${interviewReportId}.pdf`)
             document.body.appendChild(link)
             link.click()
 
-            // Cleanup — remove link & revoke object URL to free memory
+            // Cleanup
             link.remove()
             window.URL.revokeObjectURL(url)
 
         } catch (err) {
-            const msg = err?.response?.data?.message || err.message || "Failed to generate resume. Please try again."
+            // When responseType is 'blob', error response body is also a blob — parse it
+            let msg = "Failed to generate resume. Please try again."
+            if (err?.response?.data instanceof Blob) {
+                try {
+                    const text = await err.response.data.text()
+                    const json = JSON.parse(text)
+                    msg = json.message || msg
+                } catch (_) {}
+            } else {
+                msg = err?.response?.data?.message || err.message || msg
+            }
             console.error("Resume PDF download failed:", err)
             setError(msg)
         } finally {
             setLoading(false)
         }
     }
+
 
     const chatWithAI = async ({ interviewId, message, chatHistory }) => {
         try {
