@@ -22,6 +22,8 @@
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.5.0",
     "multer": "^2.2.0",
+    "passport": "^0.7.0",
+    "passport-google-oauth20": "^2.0.0",
     "pdf-parse": "^1.1.1",
     "puppeteer": "^25.3.0",
     "sass": "^1.101.0",
