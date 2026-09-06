@@ -99,4 +99,19 @@ export const evaluateFaceInterviewApi = async ({ question, transcript, expressio
     })
     return response.data
 }
+
+/**
+ * @description Service to transcribe audio blob using Groq Whisper via backend.
+ * @param {Blob} audioBlob - audio blob from MediaRecorder
+ * @param {string} mimeType - e.g. "audio/webm"
+ */
+export const transcribeAudioApi = async (audioBlob, mimeType = "audio/webm") => {
+    const formData = new FormData()
+    const ext = mimeType.split("/")[1]?.split(";")[0] || "webm"
+    formData.append("audio", audioBlob, `recording.${ext}`)
+    const response = await api.post("/api/interview/transcribe", formData, {
+        headers: { "Content-Type": "multipart/form-data" }
+    })
+    return response.data
+}
 

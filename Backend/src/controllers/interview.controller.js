@@ -1,5 +1,5 @@
 const pdfParse = require("pdf-parse/lib/pdf-parse.js")
-const { generateInterviewReport, generateResumePdf, handlePlanChat, evaluateMockAnswer, evaluateFaceInterview } = require("../services/ai.service")
+const { generateInterviewReport, generateResumePdf, handlePlanChat, evaluateMockAnswer, evaluateFaceInterview, transcribeAudio } = require("../services/ai.service")
 const interviewReportModel = require("../models/interviewReport.model")
 
 
@@ -292,6 +292,27 @@ async function evaluateFaceInterviewController(req, res) {
 }
 
 
+/**
+ * @route POST /api/interview/transcribe
+ * @description Transcribe uploaded audio using Groq Whisper
+ */
+async function transcribeAudioController(req, res) {
+    try {
+        if (!req.file || !req.file.buffer) {
+            return res.status(400).json({ message: "No audio file uploaded." })
+        }
+
+        const mimeType = req.file.mimetype || "audio/webm"
+        const text = await transcribeAudio(req.file.buffer, mimeType)
+
+        return res.status(200).json({ transcript: text })
+    } catch (err) {
+        console.error("transcribeAudio controller error:", err)
+        return res.status(500).json({ message: err.message || "Failed to transcribe audio." })
+    }
+}
+
+
 module.exports = { 
     generateInterViewReportController, 
     getInterviewReportByIdController, 
@@ -299,5 +320,6 @@ module.exports = {
     generateResumePdfController,
     chatInterviewController,
     evaluateMockAnswerController,
-    evaluateFaceInterviewController
+    evaluateFaceInterviewController,
+    transcribeAudioController
 }

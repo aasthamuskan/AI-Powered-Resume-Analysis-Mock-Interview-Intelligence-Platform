@@ -1,4 +1,5 @@
 const Groq = require("groq-sdk")
+const { toFile } = require("groq-sdk")
 const puppeteer = require("puppeteer")
 const { z } = require("zod")
 
@@ -622,4 +623,47 @@ Be direct, specific, and reference the actual behavioral data numbers. Return ON
     }
 }
 
-module.exports = { generateInterviewReport, generateResumePdf, handlePlanChat, evaluateMockAnswer, evaluateFaceInterview }
+/**
+ * @name transcribeAudio
+ * @description Transcribe an audio buffer using Groq Whisper (whisper-large-v3-turbo)
+ * @param {Buffer} audioBuffer - raw audio file buffer
+ * @param {string} mimeType - e.g. "audio/webm"
+ * @returns {Promise<string>} transcribed text
+ */
+async function transcribeAudio(audioBuffer, mimeType = "audio/webm") {
+    try {
+        const groq = getGroqClient()
+
+        // Determine file extension from mime type
+        const extMap = {
+            "audio/webm":   "webm",
+            "audio/ogg":    "ogg",
+            "audio/mp4":    "mp4",
+            "audio/mpeg":   "mp3",
+            "audio/wav":    "wav",
+            "audio/x-wav":  "wav",
+            "audio/m4a":    "m4a",
+            "audio/x-m4a":  "m4a",
+            "video/webm":   "webm",
+        }
+        const ext = extMap[mimeType] || "webm"
+        const filename = `audio.${ext}`
+
+        // Convert Buffer to a File-like object that Groq SDK accepts
+        const audioFile = await toFile(audioBuffer, filename, { type: mimeType })
+
+        const transcription = await groq.audio.transcriptions.create({
+            file: audioFile,
+            model: "whisper-large-v3-turbo",
+            response_format: "json",
+            language: "en",
+        })
+
+        return transcription.text || ""
+    } catch (err) {
+        console.error("Groq Whisper transcription error:", err)
+        throw new Error(err.message || "Failed to transcribe audio.")
+    }
+}
+
+module.exports = { generateInterviewReport, generateResumePdf, handlePlanChat, evaluateMockAnswer, evaluateFaceInterview, transcribeAudio }

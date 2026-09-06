@@ -2,6 +2,7 @@ const express = require("express")
 const authMiddleware = require("../middlewares/auth.middleware")
 const interviewController = require("../controllers/interview.controller")
 const upload = require("../middlewares/file.middleware")
+const { audioUpload } = require("../middlewares/file.middleware")
 
 const interviewRouter = express.Router()
 
@@ -57,6 +58,14 @@ interviewRouter.post("/mock/evaluate", authMiddleware.authUser, interviewControl
  * @access private
  */
 interviewRouter.post("/mock/face-evaluate", authMiddleware.authUser, interviewController.evaluateFaceInterviewController)
+
+
+/**
+ * @route POST /api/interview/transcribe
+ * @description Transcribe audio using Groq Whisper. Accepts audio/webm blob from browser.
+ * @access private
+ */
+interviewRouter.post("/transcribe", authMiddleware.authUser, audioUpload.single("audio"), interviewController.transcribeAudioController)
 
 
 module.exports = interviewRouter
